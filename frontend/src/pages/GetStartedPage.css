@@ -1,0 +1,225 @@
+/* Get started header: logo centered, language on side */
+.get-started-header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 1rem 1.5rem;
+}
+
+.get-started-header__inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  position: relative;
+}
+
+.get-started-header__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.get-started-header__logo-img {
+  height: 140px;
+  width: auto;
+  object-fit: contain;
+}
+
+.get-started-header__lang {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.get-started-header__lang-select {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.get-started-header__lang-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+@media (max-width: 600px) {
+  .get-started-header__logo-img {
+    height: 100px;
+  }
+  .get-started-header__inner {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .get-started-header__lang {
+    position: static;
+    transform: none;
+  }
+}
+
+.get-started-page {
+  flex: 1;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.get-started-page__inner {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.get-started-page__sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.get-started-section {
+  padding: 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.get-started-section__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--color-primary);
+}
+
+.get-started-section__desc {
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.get-started-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.get-started-page__back:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+/* Auth forms */
+.auth-forms__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.auth-forms__tab {
+  padding: 0.5rem 1rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.auth-forms__tab:hover {
+  border-color: var(--color-primary);
+}
+
+.auth-forms__tab--active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.auth-forms__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-forms__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.auth-forms__label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.auth-forms__forgot {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.auth-forms__forgot:hover {
+  text-decoration: underline;
+}
+
+.auth-forms__input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  background: var(--color-surface);
+}
+
+.auth-forms__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.auth-forms__message {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: var(--radius);
+}
+
+.auth-forms__message--error {
+  background: rgba(192, 57, 43, 0.1);
+  color: var(--color-error);
+}
+
+.auth-forms__message--success {
+  background: var(--color-accent-muted);
+  color: var(--color-primary);
+}
+
+.auth-forms__submit {
+  padding: 0.65rem 1.25rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.auth-forms__submit:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.auth-forms__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

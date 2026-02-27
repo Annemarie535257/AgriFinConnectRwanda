@@ -1,0 +1,97 @@
+/* Our Services — card strip layout aligned with logo colors (forest green, gold) */
+.our-services {
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: var(--space-2xl) var(--space-md);
+}
+
+.our-services__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.our-services__title {
+  margin: 0 0 var(--space-xs);
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.our-services__lead {
+  margin: 0 auto 2.5rem;
+  max-width: 640px;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.our-services__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.75rem;
+}
+
+@media (max-width: 992px) {
+  .our-services__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .our-services__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.our-services__card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  padding: 1.75rem 1.5rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.our-services__icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: rgba(13, 92, 46, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.our-services__icon {
+  font-size: 1.5rem;
+}
+
+.our-services__card-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.our-services__card-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--color-text-muted);
+}
+
+.our-services__bar {
+  margin-top: 1.1rem;
+  height: 3px;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-bright));
+}

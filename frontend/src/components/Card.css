@@ -1,0 +1,113 @@
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--color-border);
+}
+
+.card__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  color: var(--color-primary);
+}
+
+.card__desc {
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.card__form {
+  margin-bottom: 1rem;
+}
+
+.card__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.card__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.card__input {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.card__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-accent-muted);
+}
+
+.card__btn {
+  padding: 0.6rem 1.25rem;
+  background: var(--color-accent);
+  color: #1a1a1a;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.card__btn:hover:not(:disabled) {
+  background: var(--color-accent-light);
+  color: #1a1a1a;
+}
+
+.card__btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.card__message {
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.card__message--error {
+  background: #fdecea;
+  color: var(--color-error);
+  border: 1px solid #f5c6c6;
+}
+
+.card__result {
+  padding: 0.75rem 1rem;
+  background: rgba(13, 92, 46, 0.08);
+  border-radius: var(--radius);
+}
+
+.card__result-detail {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  font-weight: normal;
+}
+
+.card__result--amount {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.risk-low { color: var(--color-success); }
+.risk-mid { color: var(--color-warning); }
+.risk-high { color: var(--color-error); }

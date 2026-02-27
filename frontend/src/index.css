@@ -1,0 +1,98 @@
+/* Palette from AgriFinConnect Rwanda logo: forest green, lime green, gold */
+:root {
+  --color-bg: #f8faf8;
+  --color-surface: #ffffff;
+  --color-primary: #0d5c2e;
+  --color-primary-dark: #083d20;
+  --color-primary-light: #2d8a5a;
+  --color-primary-bright: #3a9b4a;
+  --color-accent: #c9a227;
+  --color-accent-light: #e6c04a;
+  --color-accent-muted: rgba(201, 162, 39, 0.15);
+  --color-text: #1a1a1a;
+  --color-text-muted: #5c5c5c;
+  --color-border: #e0e8e2;
+  --color-success: #0d5c2e;
+  --color-warning: #b8860b;
+  --color-error: #c0392b;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-script: 'Caveat', cursive;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.1);
+  --radius: 12px;
+  --radius-lg: 16px;
+  /* Spacing scale for consistent rhythm */
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4rem;
+  --space-3xl: 5rem;
+  /* Section reveal animation */
+  --reveal-duration: 0.6s;
+  --reveal-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Clear focus outline for keyboard users (Rwanda accessibility) */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+/* Section reveal animation for landing page */
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-section {
+  animation: landing-reveal var(--reveal-duration) var(--reveal-ease) both;
+}

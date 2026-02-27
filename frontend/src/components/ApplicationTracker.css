@@ -1,0 +1,254 @@
+/* Horizontal order-style tracker (Dribbble reference); colors: primary blue + grey */
+
+.application-tracker {
+  margin: 0.75rem 0;
+  --tracker-primary: var(--color-primary, #1a73e8);
+  --tracker-done: #0d9488;
+  --tracker-muted: #94a3b8;
+  --tracker-bg: #f1f5f9;
+}
+
+/* ----- Progress bar (full mode) ----- */
+.application-tracker__progress-wrap {
+  margin-bottom: 1.25rem;
+}
+
+.application-tracker__progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.application-tracker__progress-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.application-tracker__progress-percent {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--tracker-primary);
+}
+
+.application-tracker__progress-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.application-tracker__progress-bar--horizontal .application-tracker__progress-fill {
+  transition: width 0.4s ease-out;
+}
+
+.application-tracker__progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--tracker-primary), #0ea5e9);
+  border-radius: 999px;
+}
+
+/* ----- Horizontal track (thick line + nodes) ----- */
+.application-tracker__track {
+  position: relative;
+  padding: 0.5rem 0 1rem;
+}
+
+.application-tracker__track-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2rem;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.application-tracker__track-line-fill {
+  height: 100%;
+  background: var(--tracker-primary);
+  border-radius: 999px;
+  transition: width 0.4s ease-out;
+}
+
+.application-tracker__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
+}
+
+.application-tracker__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  max-width: 140px;
+  min-width: 0;
+}
+
+/* Circle with icon */
+.application-tracker__marker {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tracker-muted);
+  margin-bottom: 0.5rem;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+}
+
+.application-tracker__step--done .application-tracker__marker {
+  background: var(--tracker-primary);
+  border-color: var(--tracker-primary);
+  color: #fff;
+}
+
+.application-tracker__step--current .application-tracker__marker {
+  background: var(--tracker-primary);
+  border-color: var(--tracker-primary);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.25);
+}
+
+.application-tracker__marker svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Label and date below icon */
+.application-tracker__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.2;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.application-tracker__detail {
+  font-size: 0.72rem;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.3;
+  margin-bottom: 0.2rem;
+}
+
+.application-tracker__step--done .application-tracker__label,
+.application-tracker__step--current .application-tracker__label {
+  color: #1e293b;
+}
+
+.application-tracker__step--current .application-tracker__label {
+  color: var(--tracker-primary);
+}
+
+.application-tracker__date {
+  font-size: 0.75rem;
+  color: var(--tracker-muted);
+  text-align: center;
+}
+
+.application-tracker__step--done .application-tracker__date,
+.application-tracker__step--current .application-tracker__date {
+  color: #64748b;
+}
+
+/* Notes section (below tracker) */
+.application-tracker__notes {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.application-tracker__note-block {
+  padding: 0.5rem 0.75rem;
+  background: var(--tracker-bg);
+  border-radius: 8px;
+  border-left: 4px solid var(--tracker-primary);
+}
+
+.application-tracker__note-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.application-tracker__note-text {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.application-tracker__updated-by {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--tracker-muted);
+}
+
+/* Compact: smaller circles and text, hide date if needed */
+.application-tracker--compact .application-tracker__progress-wrap {
+  display: none;
+}
+
+.application-tracker--compact .application-tracker__marker {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-width: 2px;
+}
+
+.application-tracker--compact .application-tracker__marker svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.application-tracker--compact .application-tracker__track-line {
+  top: 1.4rem;
+  height: 4px;
+}
+
+.application-tracker--compact .application-tracker__label {
+  font-size: 0.7rem;
+}
+
+.application-tracker--compact .application-tracker__date {
+  display: none;
+}
+
+.application-tracker--compact .application-tracker__notes {
+  display: none;
+}
+
+/* Responsive: stack on very small screens */
+@media (max-width: 640px) {
+  .application-tracker__timeline {
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: flex-start;
+  }
+
+  .application-tracker__step {
+    flex: 0 0 auto;
+    max-width: calc(50% - 0.5rem);
+  }
+
+  .application-tracker__track-line {
+    display: none;
+  }
+}
