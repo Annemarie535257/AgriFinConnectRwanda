@@ -90,7 +90,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS: in production set CORS_ALLOWED_ORIGINS (comma-separated) to your Netlify URL(s)
+# CORS: allow frontend origin. On Render, set env CORS_ALLOWED_ORIGINS to your Netlify URL(s), comma-separated
+# (e.g. https://agrifinconnectrwanda.netlify.app, https://yoursite.netlify.app).
 _cors_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
 if _cors_env:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(',') if o.strip()]
@@ -100,6 +101,7 @@ else:
         'http://127.0.0.1:5173',
         'http://localhost:3000',
         'http://127.0.0.1:3000',
+        'https://agrifinconnectrwanda.netlify.app',  # Netlify production
     ]
 CORS_ALLOW_CREDENTIALS = True
 

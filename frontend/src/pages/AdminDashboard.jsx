@@ -6,7 +6,11 @@ import DashboardTopBar from '../components/DashboardTopBar';
 import './Dashboard.css';
 import './AdminDashboard.css';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+// Base URL for backend (Django admin link). Derive from API URL if only VITE_API_URL is set (e.g. on Netlify).
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+const BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL ||
+  (API_URL.startsWith('http') ? API_URL.replace(/\/api\/?$/, '') : 'http://localhost:8080');
 
 export default function AdminDashboard() {
   const { t } = useLanguage();

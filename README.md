@@ -372,5 +372,18 @@ High-level plan for deploying AgriFinConnect Rwanda to a production or staging e
 | 8 | **HTTPS** | Use TLS (e.g. Let’s Encrypt) for both frontend and backend. |
 | 9 | **Monitoring** | Optional: logging, health checks (`/api/` or a dedicated `/health/`), and error tracking (e.g. Sentry). |
 
+### 12.1 Netlify (frontend) + Render (API)
+
+- **Netlify** — In the Netlify dashboard: **Site settings → Environment variables**. Add:
+  - `VITE_API_URL` = `https://agrifinconnectrwanda.onrender.com/api`
+  - (Optional) `VITE_BACKEND_URL` = `https://agrifinconnectrwanda.onrender.com` (for the Django admin link in the admin dashboard; otherwise it is derived from `VITE_API_URL`.)
+  Redeploy the site after adding or changing these so the build picks them up.
+
+- **Render** — In the Render dashboard for your Django service, set:
+  - `CORS_ALLOWED_ORIGINS` = your Netlify URL(s), e.g. `https://agrifinconnectrwanda.netlify.app` (comma-separated if you have multiple).
+  - `DJANGO_ALLOWED_HOSTS` is already defaulted to include `agrifinconnectrwanda.onrender.com`; override via env if you use a custom domain.
+
+- **Database** — For now you can keep **SQLite** on Render for testing (data may be lost on redeploy if the filesystem is ephemeral). For a persistent production setup, add a **PostgreSQL** database on Render, set `DATABASE_URL` (or configure `DATABASES` in `settings.py` from env), run `python manage.py migrate` in the build/start command or once manually, and use that database for the Django service.
+
 ---
 
