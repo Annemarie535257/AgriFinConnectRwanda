@@ -1,8 +1,11 @@
 /**
  * API client for AgriFinConnect Rwanda backend.
- * Base URL: use Vite proxy /api in dev, or set VITE_API_URL in production.
+ * Dev: Vite proxy /api. Production: VITE_API_URL or live Render API.
  */
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const LIVE_API_BASE = 'https://agrifinconnectrwanda.onrender.com/api';
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? LIVE_API_BASE : '/api');
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
@@ -98,7 +101,7 @@ export async function resetPassword({ token, newPassword }) {
 /** POST /api/activity/log — log Get Started activity (no auth). Fire-and-forget. */
 export async function logGetStartedActivity(eventType, role = '') {
   try {
-    await fetch(`${import.meta.env.VITE_API_URL || '/api'}/activity/log/`, {
+    await fetch(`${API_BASE}/activity/log/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event_type: eventType, role }),
@@ -183,7 +186,7 @@ export async function uploadApplicationDocument(applicationId, documentType, fil
   const form = new FormData();
   form.append('document_type', documentType);
   form.append('file', file);
-  const url = `${import.meta.env.VITE_API_URL || '/api'}/farmer/applications/${applicationId}/documents/`;
+  const url = `${API_BASE}/farmer/applications/${applicationId}/documents/`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: token ? `Token ${token}` : '' },
@@ -205,7 +208,7 @@ export async function uploadApplicationDocument(applicationId, documentType, fil
 /** GET /api/farmer/applications/<id>/package — download ZIP (summary PDF + uploaded docs) */
 export async function downloadFarmerApplicationPackage(id) {
   const token = localStorage.getItem('agrifinconnect-token');
-  const url = `${import.meta.env.VITE_API_URL || '/api'}/farmer/applications/${id}/package/`;
+  const url = `${API_BASE}/farmer/applications/${id}/package/`;
   const res = await fetch(url, {
     method: 'GET',
     headers: { Authorization: token ? `Token ${token}` : '' },
@@ -267,7 +270,7 @@ export async function getMfiPortfolio() {
 /** GET /api/mfi/applications/<id>/package — download ZIP (summary PDF + uploaded docs) */
 export async function downloadMfiApplicationPackage(id) {
   const token = localStorage.getItem('agrifinconnect-token');
-  const url = `${import.meta.env.VITE_API_URL || '/api'}/mfi/applications/${id}/package/`;
+  const url = `${API_BASE}/mfi/applications/${id}/package/`;
   const res = await fetch(url, {
     method: 'GET',
     headers: { Authorization: token ? `Token ${token}` : '' },

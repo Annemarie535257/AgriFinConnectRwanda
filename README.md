@@ -1,6 +1,23 @@
 # AgriFinConnect Rwanda
 
-Github link: https://github.com/Annemarie535257/AgriFinConnect-Rwanda.git
+**AgriFinConnect Rwanda** is an AI-powered platform that improves agricultural finance and services for smallholder farmers in Rwanda. It offers a React web app for farmers, microfinance institutions (MFIs), and admins; a Django REST API for auth, dashboards, and ML (loan eligibility, risk scoring, amount recommendation); and a multilingual financial assistant chatbot (English, French, Kinyarwanda). Farmers can explore loan eligibility, submit applications with documents, and download application packages; MFIs can review applications and manage portfolio risk.
+
+---
+
+## Live deployment (current status)
+
+The app is deployed and using the live APIs:
+
+| What | URL |
+|------|-----|
+| **Live app (frontend)** | [https://agrifinconnectrwanda.netlify.app/](https://agrifinconnectrwanda.netlify.app/) |
+| **API docs (Swagger)** | [https://agrifinconnectrwanda.onrender.com/swagger/](https://agrifinconnectrwanda.onrender.com/swagger/) |
+| **Backend API base** | `https://agrifinconnectrwanda.onrender.com/api` |
+
+- **Frontend:** Hosted on **Netlify**. Production builds are configured to call the Render API by default (no env var required).
+- **Backend:** Hosted on **Render**. CORS allows the Netlify origin; `ALLOWED_HOSTS` includes the Render domain.
+- **Database:** Currently using SQLite on Render for testing. For persistent production data, add PostgreSQL on Render and set `DATABASE_URL`.
+- **Repo:** [https://github.com/Annemarie535257/AgriFinConnect-Rwanda](https://github.com/Annemarie535257/AgriFinConnect-Rwanda)
 
 ```bash
 git clone https://github.com/Annemarie535257/AgriFinConnect-Rwanda.git
@@ -10,31 +27,21 @@ git clone https://github.com/Annemarie535257/AgriFinConnect-Rwanda.git
 
 ## Description
 
-AgriFinConnect Rwanda is a project aimed at **improving agricultural finance and services for smallholder farmers in Rwanda using AI**. It is an end‑to‑end platform that combines:
+AgriFinConnect Rwanda is an end‑to‑end platform that combines:
 
 - A **React web app** for farmers, microfinance institutions (MFIs), and admins  
 - A **Django REST API** for authentication, dashboards, and ML inference  
 - **ML models** for loan eligibility, default risk scoring, and loan amount recommendation  
 - A **financial assistant chatbot** (Flan‑T5) with support for **English, French, and Kinyarwanda**
 
-The platform helps farmers explore loan eligibility and recommended amounts, allows MFIs to review applications and manage portfolio risk, and provides a multilingual AI assistant for loan-related questions.
-
-It also includes a document-driven loan workflow where:
-- farmers upload required application documents,
-- both farmers and MFIs can review folder-style application packages,
-- and each package can be downloaded as a ZIP (with summary PDF + attached documents) for audit and record keeping.
+The platform helps farmers explore loan eligibility and recommended amounts, allows MFIs to review applications and manage portfolio risk, and provides a multilingual AI assistant for loan-related questions. It includes a document-driven loan workflow: farmers upload required application documents; farmers and MFIs can review folder-style application packages; each package can be downloaded as a ZIP (summary PDF + attached documents) for audit and record keeping.
 
 ---
 
 ## Demo
 
-link : https://drive.google.com/file/d/1X3JCoGWCgT6zR_3i8_JM-3kLIcqoSxFS/view?usp=sharing
-
----
-
-## Demo
-
-link : https://youtu.be/_h2mcfVPl2Y
+- Video: [YouTube](https://youtu.be/_h2mcfVPl2Y)
+- Demo file: [Google Drive](https://drive.google.com/file/d/1X3JCoGWCgT6zR_3i8_JM-3kLIcqoSxFS/view?usp=sharing)
 
 ---
 
@@ -374,10 +381,7 @@ High-level plan for deploying AgriFinConnect Rwanda to a production or staging e
 
 ### 12.1 Netlify (frontend) + Render (API)
 
-- **Netlify** — In the Netlify dashboard: **Site settings → Environment variables**. Add:
-  - `VITE_API_URL` = `https://agrifinconnectrwanda.onrender.com/api`
-  - (Optional) `VITE_BACKEND_URL` = `https://agrifinconnectrwanda.onrender.com` (for the Django admin link in the admin dashboard; otherwise it is derived from `VITE_API_URL`.)
-  Redeploy the site after adding or changing these so the build picks them up.
+- **Netlify** — The production build defaults to the live Render API (`https://agrifinconnectrwanda.onrender.com/api`), so the deployed app at [https://agrifinconnectrwanda.netlify.app/](https://agrifinconnectrwanda.netlify.app/) uses the live APIs without any environment variables. Optional: in **Site settings → Environment variables** you can set `VITE_API_URL` or `VITE_BACKEND_URL` to override.
 
 - **Render** — In the Render dashboard for your Django service, set:
   - `CORS_ALLOWED_ORIGINS` = your Netlify URL(s), e.g. `https://agrifinconnectrwanda.netlify.app` (comma-separated if you have multiple).
