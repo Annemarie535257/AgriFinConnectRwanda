@@ -12,7 +12,6 @@ The app is deployed and using the live APIs:
 |------|-----|
 | **Live app (frontend)** | [https://agrifinconnectrwanda.netlify.app/](https://agrifinconnectrwanda.netlify.app/) |
 | **API docs (Swagger)** | [https://agrifinconnectrwanda.onrender.com/swagger/](https://agrifinconnectrwanda.onrender.com/swagger/) |
-| **Backend API base** | `https://agrifinconnectrwanda.onrender.com/api` |
 
 - **Frontend:** Hosted on **Netlify**. Production builds are configured to call the Render API by default (no env var required).
 - **Backend:** Hosted on **Render**. CORS allows the Netlify origin; `ALLOWED_HOSTS` includes the Render domain.

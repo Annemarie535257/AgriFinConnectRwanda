@@ -227,7 +227,7 @@ export const translations = {
       footer: 'Enhancing financial inclusion for smallholder farmers in Rwanda using alternative data and AI-driven credit assessment.',
     },
     footer: {
-      tagline: 'AI-powered digital microfinance for smallholder farmers and cooperatives.',
+      tagline: 'AI-powered digital microfinance platform for Rwandan smallholder farmers, cooperatives, and microfinance institutions.',
       quickLinks: 'Quick links',
       services: 'Services',
       aboutUs: 'About us',
@@ -572,7 +572,7 @@ export const translations = {
       footer: "Renforcer l'inclusion financière des petits agriculteurs au Rwanda grâce aux données alternatives et à l'évaluation du crédit par IA.",
     },
     footer: {
-      tagline: 'Microfinance numérique par IA pour les petits agriculteurs et coopératives.',
+      tagline: 'Plateforme de microfinance numérique par IA pour les petits agriculteurs, coopératives et institutions de microfinance au Rwanda.',
       quickLinks: 'Liens rapides',
       services: 'Services',
       aboutUs: 'À propos de nous',
@@ -915,7 +915,7 @@ export const translations = {
       footer: 'Kwiyongera kwinjira mu amafaranga ku bororzi mu Rwanda tuzamura amakuru n\'imodeli.',
     },
     footer: {
-      tagline: 'Microfinance y\'ikoranabuhanga kubera abororzi n\'amasosiyete.',
+      tagline: 'Porogaramu ya microfinance y\'ikoranabuhanga ishingiye kuri AI kubera abahinzi bato, amasosiyete n\'ibigo by\'imari iciriritse mu Rwanda.',
       quickLinks: 'Amalink',
       services: 'Serivisi',
       aboutUs: 'Ibyerekeye twe',

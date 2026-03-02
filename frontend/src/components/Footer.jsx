@@ -49,10 +49,22 @@ export default function Footer() {
             </ul>
           </div>
           <div className="footer__col">
-            <span className="footer__col-title">{t('footer.aboutUs')}</span>
+            <span className="footer__col-title">{t('footer.contactUs')}</span>
             <ul className="footer__links">
               <li>
-                <Link to="/#contact" className="footer__link">{t('footer.contactUs')}</Link>
+                <span className="footer__link">
+                  {t('contact.addressValue')}
+                </span>
+              </li>
+              <li>
+                <a href={`tel:${t('contact.phoneValue')}`} className="footer__link">
+                  {t('contact.phoneValue')}
+                </a>
+              </li>
+              <li>
+                <a href={`mailto:${t('contact.emailValue')}`} className="footer__link">
+                  {t('contact.emailValue')}
+                </a>
               </li>
             </ul>
           </div>

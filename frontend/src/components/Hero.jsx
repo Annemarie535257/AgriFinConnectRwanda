@@ -22,12 +22,6 @@ export default function Hero() {
             >
               {t('nav.getStarted')}
             </Link>
-            <Link
-              to="/try-models"
-              className="hero__btn hero__btn--secondary"
-            >
-              {t('nav.tryModels')}
-            </Link>
           </div>
         </div>
         <div className="hero__visual" aria-hidden="true">
@@ -40,7 +34,7 @@ export default function Hero() {
             <span className="hero__dot hero__dot--dark" />
           </div>
           <div className="hero__visual-img-wrap">
-            <img src="/download (1).jpeg" alt="" className="hero__visual-img" />
+            <img src="/better.png" alt="" className="hero__visual-img" />
           </div>
         </div>
       </div>
