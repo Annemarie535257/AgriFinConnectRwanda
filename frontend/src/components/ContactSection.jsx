@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import './ContactSection.css';
 
-const SERVICE_KEYS = ['service1', 'service2', 'service3', 'service4', 'service5', 'service6'];
+// Reuse the same service keys as the main services section so labels stay in sync
+const SERVICE_CARD_KEYS = ['loanApplication', 'eligibility', 'risk', 'recommendation', 'documents', 'farmData'];
 
 export default function ContactSection() {
   const { t } = useLanguage();
@@ -44,8 +45,8 @@ export default function ContactSection() {
             <div className="contact__block contact__block--services">
               <h3 className="contact__block-title">{t('contact.servicesWeOffer')}</h3>
               <ul className="contact__services-list">
-                {SERVICE_KEYS.map((key) => (
-                  <li key={key}>{t(`contact.${key}`)}</li>
+                {SERVICE_CARD_KEYS.map((key) => (
+                  <li key={key}>{t(`services.cards.${key}.title`)}</li>
                 ))}
               </ul>
             </div>

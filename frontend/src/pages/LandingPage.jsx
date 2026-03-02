@@ -11,13 +11,15 @@ import '../App.css';
 
 export default function LandingPage() {
   return (
-    <div className="app">
+    <div className="app landing-layout">
       <Header />
-      <Hero />
-      <AboutSection />
-      <OurServicesSection />
-      <FaqSection />
-      <ContactSection />
+      <main className="landing-main" aria-label="AgriFinConnect Rwanda landing content">
+        <Hero />
+        <AboutSection />
+        <OurServicesSection />
+        <FaqSection />
+        <ContactSection />
+      </main>
       <Footer />
       <BackToTop />
       <FloatingChatbot />

@@ -1,7 +1,6 @@
 .contact {
-  padding: var(--space-2xl) var(--space-md);
+  padding: var(--space-3xl) var(--space-md);
   background: var(--color-bg);
-  border-top: 1px solid var(--color-border);
 }
 
 .contact__inner {

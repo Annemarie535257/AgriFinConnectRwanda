@@ -2,7 +2,7 @@
 .our-services {
   background: var(--color-bg);
   color: var(--color-text);
-  padding: var(--space-2xl) var(--space-md);
+  padding: var(--space-3xl) var(--space-md);
 }
 
 .our-services__inner {

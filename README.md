@@ -1,6 +1,6 @@
 # AgriFinConnect Rwanda
 
-**AgriFinConnect Rwanda** is an AI-powered platform that improves agricultural finance and services for smallholder farmers in Rwanda. It offers a React web app for farmers, microfinance institutions (MFIs), and admins; a Django REST API for auth, dashboards, and ML (loan eligibility, risk scoring, amount recommendation); and a multilingual financial assistant chatbot (English, French, Kinyarwanda). Farmers can explore loan eligibility, submit applications with documents, and download application packages; MFIs can review applications and manage portfolio risk.
+**AgriFinConnect Rwanda** is an AI-powered platform that improves agricultural finance and services for smallholder farmers in Rwanda. It offers a React web app for farmers, microfinance institutions (MFIs); a Django REST API for auth, dashboards, and ML (loan eligibility, risk scoring, amount recommendation); and a multilingual financial assistant chatbot (English, French, Kinyarwanda). Farmers can explore loan eligibility, submit applications with documents, and download application packages; MFIs can review applications and manage portfolio risk.
 
 ---
 
@@ -16,11 +16,11 @@ The app is deployed and using the live APIs:
 
 - **Frontend:** Hosted on **Netlify**. Production builds are configured to call the Render API by default (no env var required).
 - **Backend:** Hosted on **Render**. CORS allows the Netlify origin; `ALLOWED_HOSTS` includes the Render domain.
-- **Database:** Currently using SQLite on Render for testing. For persistent production data, add PostgreSQL on Render and set `DATABASE_URL`.
-- **Repo:** [https://github.com/Annemarie535257/AgriFinConnect-Rwanda](https://github.com/Annemarie535257/AgriFinConnect-Rwanda)
+- **Database:** Currently using SQLite on Render for testing. For persistent production data, I will add PostgreSQL on Render and set `DATABASE_URL`.
+- **Repo:** [https://github.com/Annemarie535257/AgriFinConnectRwanda.git](https://github.com/Annemarie535257/AgriFinConnectRwanda.git)
 
 ```bash
-git clone https://github.com/Annemarie535257/AgriFinConnect-Rwanda.git
+git clone https://github.com/Annemarie535257/AgriFinConnectRwanda.git
 ```
 
 ---
@@ -40,8 +40,7 @@ The platform helps farmers explore loan eligibility and recommended amounts, all
 
 ## Demo
 
-- Video: [YouTube](https://youtu.be/_h2mcfVPl2Y)
-- Demo file: [Google Drive](https://drive.google.com/file/d/1X3JCoGWCgT6zR_3i8_JM-3kLIcqoSxFS/view?usp=sharing)
+- Demo file: 
 
 ---
 
@@ -63,11 +62,11 @@ The platform helps farmers explore loan eligibility and recommended amounts, all
 
 - **ML & Data Science** (`Notebooks/`, `datasets/`, `loan_default_risk_model/`)
   - `train_loan_default_risk_model.ipynb`: trains the three loan models and exports `.pkl` artifacts
-  - `Financial_LLM_Chatbot.ipynb`: fine‑tunes Flan‑T5 on a loan/mortgage Q&A dataset and exports to `saved-model/`
+  - `Financial_LLM_Chatbot.ipynb`: fine‑tunes Flan‑T5 on a loan/mortgage Q&A dataset and exports the chatbot model
 
 - **Models on disk**
   - `loan_default_risk_model/` — sklearn / XGBoost models + preprocessing artifacts
-  - `saved-model/` (not tracked by git) — T5 model + tokenizer for the chatbot
+  - `AI_Chatbot_model/` (not tracked by git) — T5 model + tokenizer for the chatbot
 
 ---
 
@@ -85,7 +84,7 @@ The platform helps farmers explore loan eligibility and recommended amounts, all
   - Explains the reasoning in plain language
 
 - **Chatbot**
-  - Uses a fine‑tuned **Flan‑T5** model served from `saved-model/`
+  - Uses a fine‑tuned **Flan‑T5** model served from `AI_Chatbot_model/` (or the directory configured via `CHATBOT_MODEL_DIR`)
   - Answers questions about loans, applications, repayment, etc.
   - Accepts a `language` field (`en`, `fr`, `rw`) and uses MarianMT models to translate
     questions/answers between English, French, and Kinyarwanda
@@ -115,7 +114,7 @@ AgriFinConnect-Rwanda/
 │   ├── api/
 │   │   ├── ml_service.py           # Load loan models (.pkl) and run predictions
 │   │   ├── explanations.py         # Human‑readable explanations for ML outputs
-│   │   ├── chatbot_service.py      # Load Flan‑T5 from saved-model/ and generate replies
+│   │   ├── chatbot_service.py      # Load Flan‑T5 from CHATBOT_MODEL_DIR and generate replies
 │   │   ├── translation_service.py  # MarianMT translation EN<->FR/RW for chatbot
 │   │   ├── views.py                # DRF views (auth, ML, chatbot, dashboards)
 │   │   ├── urls.py                 # /api/... routes
@@ -160,7 +159,7 @@ AgriFinConnect-Rwanda/
 │   └── Bitext-mortgage-loans-llm-chatbot-training-dataset/
 │       └── bitext-mortgage-loans-llm-chatbot-training-dataset.csv
 │
-├── loan_default_risk_model/        # Production model artifacts used by backend
+├── loan_default_risk_model/        # (optional) Model artifacts used by backend ML endpoints
 │   ├── feature_columns.pkl
 │   ├── scaler.pkl
 │   ├── label_encoder.pkl
@@ -168,7 +167,7 @@ AgriFinConnect-Rwanda/
 │   ├── risk_score_regressor.pkl
 │   └── loan_amount_regressor.pkl
 │
-├── saved-model/                    # (ignored by git) Flan‑T5 chatbot model + tokenizer
+├── AI_Chatbot_model/               # (optional) Flan‑T5 chatbot model + tokenizer for /api/chat/
 ├── requirements.txt                # Root DS requirements (for notebooks, optional)
 └── README.md
 ```
@@ -196,7 +195,7 @@ AgriFinConnect-Rwanda/
 ## 5. Tech Stack
 
 - **Backend**
-  - Python 3.9+
+  - Python 3.9–3.12 (3.11 recommended for full ML/chatbot support)
   - Django 4.x, Django REST Framework
   - drf-yasg for Swagger/Redoc
   - SQLite (default) for persistence
@@ -214,11 +213,12 @@ AgriFinConnect-Rwanda/
 
 ### 7.1 Backend (API + ML + Chatbot)
 
-From the repo root:
+From the repo root (make sure you are using **Python 3.9–3.12**, ideally **3.11**):
 
 ```bash
-python -m venv venv
-# Windows PowerShell:
+# Create and activate a virtualenv
+# On Windows, if you have multiple Python versions installed:
+py -3.11 -m venv venv
 .\venv\Scripts\Activate.ps1
 
 cd backend
@@ -238,8 +238,8 @@ python manage.py runserver 8080
   - Controlled by `MODELS_DIR` in `backend/config/settings.py`
 
 - Chatbot model:
-  - Directory: `saved-model/` in project root (not committed to git)
-  - Controlled by `CHATBOT_MODEL_DIR` in `backend/api/chatbot_service.py` (via `settings.PROJECT_ROOT`)
+  - Default directory (in this repo): `AI_Chatbot_model/` in the project root (not committed to git)
+  - Controlled by `CHATBOT_MODEL_DIR` in `backend/config/settings.py`
 
 If these directories are missing or incomplete, ML endpoints will return `503` with an error message.
 
@@ -295,10 +295,10 @@ npm run dev
 1. Open `Notebooks/Financial_LLM_Chatbot.ipynb`.
 2. Ensure the Bitext dataset is available under `datasets/`.
 3. Run all cells to fine‑tune Flan‑T5 on the mortgage/loan Q&A data.
-4. At the end, export the model to **project root**:
+4. At the end, export the model to **project root** (the directory configured as `CHATBOT_MODEL_DIR`):
 
    ```python
-   save_dir = r"c:/Users/YourUser/Desktop/ALU/AgriFinConnect-Rwanda/saved-model"
+   save_dir = r"c:/Users/YourUser/Desktop/ALU/AgriFinConnectRwanda/AI_Chatbot_model"
    tokenizer.save_pretrained(save_dir)
    model.save_pretrained(save_dir)
    ```
@@ -369,25 +369,13 @@ High-level plan for deploying AgriFinConnect Rwanda to a production or staging e
 
 | Step | Task | Notes |
 |------|------|--------|
-| 1 | **Backend hosting** | Deploy Django app to Render or Heroku. Use a production WSGI/ASGI server-Gunicorn. |
-| 2 | **Database** | Replace SQLite with PostgreSQL (or another production DB). Set `DATABASES` in settings and run migrations. |
-| 3 | **Static/media** | Serve static files via CDN or Nginx; use environment variables for `SECRET_KEY`, `ALLOWED_HOSTS`, `DEBUG=0`. |
-| 4 | **Model artifacts** | Ensure `loan_default_risk_model/` and `saved-model/` are present on the server (or on shared storage) and paths in settings point to them. |
+| 1 | **Backend hosting** | Deploy Django app to Render. Use a production WSGI server-Gunicorn. |
+| 2 | **Database** | Use SQLite with (or another production DB). Set `DATABASES` in settings and run migrations. |
+| 3 | **Static/media** | Serve static files via CDN; use environment variables for `SECRET_KEY`, `ALLOWED_HOSTS`, `DEBUG=0`. |
+| 4 | **Model artifacts** | Ensure `loan_default_risk_model/` and `AI_Chatbot_model/` are present on the server (or on shared storage) and paths in settings point to them. |
 | 5 | **Frontend build** | Run `npm run build` in `frontend/`, then serve the `dist/` output via a static host-Netlify. Set `VITE_API_URL` to the production API base URL. |
 | 6 | **API base URL** | Configure frontend to call the production API and ensure CORS allows the frontend origin. |
 | 7 | **Email** | Configure a real email backend (SMTP or SendGrid) for password reset; set `PASSWORD_RESET_FRONTEND_URL` to the live frontend URL. |
 | 8 | **HTTPS** | Use TLS (e.g. Let’s Encrypt) for both frontend and backend. |
 | 9 | **Monitoring** | Optional: logging, health checks (`/api/` or a dedicated `/health/`), and error tracking (e.g. Sentry). |
-
-### 12.1 Netlify (frontend) + Render (API)
-
-- **Netlify** — The production build defaults to the live Render API (`https://agrifinconnectrwanda.onrender.com/api`), so the deployed app at [https://agrifinconnectrwanda.netlify.app/](https://agrifinconnectrwanda.netlify.app/) uses the live APIs without any environment variables. Optional: in **Site settings → Environment variables** you can set `VITE_API_URL` or `VITE_BACKEND_URL` to override.
-
-- **Render** — In the Render dashboard for your Django service, set:
-  - `CORS_ALLOWED_ORIGINS` = your Netlify URL(s), e.g. `https://agrifinconnectrwanda.netlify.app` (comma-separated if you have multiple).
-  - `DJANGO_ALLOWED_HOSTS` is already defaulted to include `agrifinconnectrwanda.onrender.com`; override via env if you use a custom domain.
-
-- **Database** — For now you can keep **SQLite** on Render for testing (data may be lost on redeploy if the filesystem is ephemeral). For a persistent production setup, add a **PostgreSQL** database on Render, set `DATABASE_URL` (or configure `DATABASES` in `settings.py` from env), run `python manage.py migrate` in the build/start command or once manually, and use that database for the Django service.
-
----
 

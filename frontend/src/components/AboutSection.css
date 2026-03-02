@@ -1,7 +1,6 @@
 .about {
   padding: var(--space-3xl) var(--space-md);
   background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
 }
 
 .about__inner {

@@ -7,10 +7,10 @@ const FOOTER_NAV = [
   { key: 'about', to: '/#about' },
   { key: 'services', to: '/#our-services' },
   { key: 'contact', to: '/#contact' },
-  { key: 'tryModels', to: '/try-models' },
 ];
 
-const FOOTER_SERVICES = ['service1', 'service2', 'service3', 'service4'];
+// Show a subset of the core services from the main services section
+const FOOTER_SERVICE_CARD_KEYS = ['loanApplication', 'eligibility', 'risk', 'recommendation'];
 
 export default function Footer() {
   const { t } = useLanguage();
@@ -39,9 +39,11 @@ export default function Footer() {
           <div className="footer__col">
             <span className="footer__col-title">{t('footer.services')}</span>
             <ul className="footer__links">
-              {FOOTER_SERVICES.map((key) => (
+              {FOOTER_SERVICE_CARD_KEYS.map((key) => (
                 <li key={key}>
-                  <Link to="/#our-services" className="footer__link">{t(`contact.${key}`)}</Link>
+                  <Link to="/#our-services" className="footer__link">
+                    {t(`services.cards.${key}.title`)}
+                  </Link>
                 </li>
               ))}
             </ul>

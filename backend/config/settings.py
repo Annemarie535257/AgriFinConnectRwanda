@@ -112,6 +112,9 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # ML models path (saved .pkl from notebook)
 MODELS_DIR = PROJECT_ROOT / 'loan_default_risk_model'
 
+# Chatbot model directory (overrides default 'saved-model' in chatbot_service)
+CHATBOT_MODEL_DIR = PROJECT_ROOT / 'AI_Chatbot_model'
+
 # Email (for password reset). Console backend prints to terminal in dev.
 EMAIL_BACKEND = os.environ.get('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 DEFAULT_FROM_EMAIL = os.environ.get('DJANGO_FROM_EMAIL', 'noreply@agrifinconnect.rw')
