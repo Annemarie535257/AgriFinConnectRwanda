@@ -1,6 +1,7 @@
 import json
 import re
 import zipfile
+from collections.abc import Mapping
 from io import BytesIO
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
@@ -28,6 +29,7 @@ from .models import (
     DOCUMENT_TYPE_CHOICES,
     Loan,
     Repayment,
+    LoanApplicationMessage,
 )
 from .serializers import LoginSerializer, RegisterSerializer
 
@@ -48,7 +50,7 @@ _chat_response = openapi.Response('reply (string)', openapi.Schema(type=openapi.
 def _get_payload(request):
     """Get JSON body from request (works for both DRF Request and Django request)."""
     if hasattr(request, 'data') and request.data is not None:
-        return request.data if isinstance(request.data, dict) else {}
+        return request.data if isinstance(request.data, Mapping) else {}
     try:
         return json.loads(request.body) if request.body else {}
     except (json.JSONDecodeError, TypeError):
@@ -117,8 +119,16 @@ def recommend_amount(request):
     if language not in ('en', 'fr', 'rw'):
         language = 'en'
     try:
-        amount = recommend_loan_amount(payload)
-        amount_info = recommend_amount_explanation(payload, amount, language)
+        amount_usd = recommend_loan_amount(payload)
+        # Cap at what the income can actually afford (35% DTI ceiling).
+        # payload has AnnualIncome in USD already (converted by frontend formToMlPayload).
+        monthly_income_usd = float(payload.get('AnnualIncome', 1)) / 12
+        duration = int(payload.get('LoanDuration') or 24)
+        max_affordable_usd = monthly_income_usd * _MAX_DTI * duration
+        amount_usd = min(amount_usd, max_affordable_usd)
+        # Convert USD-scale model output back to RWF for display
+        amount = amount_usd * _RWF_TO_USD
+        amount_info = recommend_amount_explanation(payload, amount_usd, language)
         return Response({
             'recommended_amount': amount,
             'recommendedAmount': amount,
@@ -213,6 +223,8 @@ def auth_register(request):
             'id': user.id,
             'email': user.email,
             'username': user.username,
+            'first_name': user.first_name,
+            'name': user.first_name,
             'role': user.agrifin_profile.role,
         },
     }, status=status.HTTP_201_CREATED)
@@ -248,6 +260,8 @@ def auth_login(request):
             'id': user.id,
             'email': getattr(user, 'email', user.username),
             'username': user.username,
+            'first_name': user.first_name,
+            'name': user.first_name,
             'role': role,
         },
     })
@@ -407,26 +421,106 @@ def _is_microfinance(user):
     return _user_role(user) == 'microfinance'
 
 
-def _application_to_ml_payload(app):
-    """Build ML model payload from LoanApplication."""
+# 1 USD ≈ 1350 RWF — used to normalise RWF monetary values to the USD scale
+# the ML models were trained on, keeping absolute feature magnitudes sane.
+_RWF_TO_USD = 1350.0
+
+# Maximum debt-to-income ratio allowed for the recommended amount cap.
+# A monthly payment above 35% of monthly income is capped before returning.
+_MAX_DTI = 0.35
+
+# Bring low-income RWF profiles to at least this USD income level before
+# passing to the model, so features land within the training distribution.
+_TARGET_INCOME_USD = 45000.0
+
+def _build_ml_payload(annual_income_rwf, loan_amount_rwf, loan_duration_months,
+                      age, credit_score, employment_status, education_level,
+                      marital_status, loan_purpose):
+    """Build a normalised ML payload from RWF inputs.
+    Converts RWF→USD then scales income+loan UP so the profile sits within
+    the model’s training distribution. All RATIOS (DTI, loan-to-income) are
+    preserved from the original RWF values.
+    """
     from .ml_service import DEFAULT_NUMERIC, CATEGORICAL_OPTIONS
+
+    income_usd_raw = float(annual_income_rwf) / _RWF_TO_USD
+    loan_usd_raw   = float(loan_amount_rwf)   / _RWF_TO_USD
+    duration       = int(loan_duration_months) or 24
+
+    # Scale both income and loan so income ≥ _TARGET_INCOME_USD (never scale down).
+    scale      = max(_TARGET_INCOME_USD / income_usd_raw, 1.0) if income_usd_raw > 0 else 1.0
+    income_usd = income_usd_raw * scale
+    loan_usd   = loan_usd_raw   * scale   # ratio preserved exactly
+
+    monthly_income  = income_usd / 12
+    monthly_payment = loan_usd   / duration
+    # DTI from original unscaled values so it stays accurate
+    dti = round(min((loan_usd_raw / duration) / (income_usd_raw / 12), 0.95), 4) \
+          if income_usd_raw > 0 else 0.35
+
+    # Derive reasonable financial context from income so the model isn’t
+    # fed contradictory defaults (e.g. $5,000 savings for a $90/month earner).
+    savings      = round(income_usd * 0.15, 2)   # 15% of annual income
+    checking     = round(income_usd * 0.08, 2)   # 8%
+    total_assets = round(income_usd * 1.50, 2)   # 150% (land, equipment)
+    liabilities  = round(income_usd * 0.20, 2)   # 20%
+    net_worth    = round(total_assets - liabilities, 2)
+
+    # Map 'Farming' → 'Other' — the model’s encoder never saw 'Farming'
+    purpose = loan_purpose or 'Other'
+    if purpose not in ('Debt Consolidation', 'Education', 'Home', 'Other'):
+        purpose = 'Other'
+
     payload = dict(DEFAULT_NUMERIC)
     payload.update({
-        'Age': int(app.age),
-        'AnnualIncome': float(app.annual_income),
-        'CreditScore': int(app.credit_score),
-        'LoanAmount': float(app.loan_amount_requested),
-        'LoanDuration': int(app.loan_duration_months),
-        'EmploymentStatus': app.employment_status or 'Self-Employed',
-        'EducationLevel': app.education_level or 'High School',
-        'MaritalStatus': app.marital_status or 'Married',
-        'LoanPurpose': app.loan_purpose or 'Other',
-        'HomeOwnershipStatus': 'Own',  # Default for farmers
+        'Age':                         int(age),
+        'AnnualIncome':                income_usd,
+        'CreditScore':                 int(credit_score),
+        'LoanAmount':                  loan_usd,
+        'LoanDuration':                duration,
+        'EmploymentStatus':            employment_status or 'Self-Employed',
+        'EducationLevel':              education_level  or 'High School',
+        'MaritalStatus':               marital_status   or 'Married',
+        'LoanPurpose':                 purpose,
+        'HomeOwnershipStatus':         'Own',
+        'DebtToIncomeRatio':           dti,
+        'TotalDebtToIncomeRatio':      dti,
+        'MonthlyIncome':               monthly_income,
+        'MonthlyLoanPayment':          monthly_payment,
+        'MonthlyDebtPayments':         round(monthly_payment, 2),
+        'SavingsAccountBalance':       savings,
+        'CheckingAccountBalance':      checking,
+        'TotalAssets':                 total_assets,
+        'TotalLiabilities':            liabilities,
+        'NetWorth':                    net_worth,
+        'PaymentHistory':              25,   # training mean=24, std=4.85
+        'UtilityBillsPaymentHistory':  0.90,
+        'PreviousLoanDefaults':        0,
+        'BankruptcyHistory':           0,
+        'LengthOfCreditHistory':       8,
+        'NumberOfCreditInquiries':     1,
+        'NumberOfOpenCreditLines':     2,
+        'CreditCardUtilizationRate':   0.20,
     })
-    # Ensure categorical values are valid
     for k, opts in CATEGORICAL_OPTIONS.items():
         if payload.get(k) not in opts:
             payload[k] = opts[0]
+    return payload, income_usd_raw, duration, income_usd_raw / 12
+
+
+def _application_to_ml_payload(app):
+    """Build ML model payload from LoanApplication."""
+    payload, _, _, _ = _build_ml_payload(
+        annual_income_rwf    = app.annual_income,
+        loan_amount_rwf      = app.loan_amount_requested,
+        loan_duration_months = app.loan_duration_months,
+        age                  = app.age,
+        credit_score         = app.credit_score,
+        employment_status    = app.employment_status,
+        education_level      = app.education_level,
+        marital_status       = app.marital_status,
+        loan_purpose         = app.loan_purpose,
+    )
     return payload
 
 
@@ -440,31 +534,70 @@ def farmer_profile(request):
     """GET/PATCH /api/farmer/profile/ — Get or update farmer profile."""
     if not _is_farmer(request.user):
         return Response({'error': 'Farmer access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    def _serialize_profile(profile_obj):
+        photo_url = None
+        if profile_obj.profile_photo:
+            try:
+                photo_url = request.build_absolute_uri(profile_obj.profile_photo.url)
+            except Exception:
+                photo_url = profile_obj.profile_photo.url
+        return {
+            'id': profile_obj.id,
+            'user_id': request.user.id,
+            'full_name': request.user.first_name or request.user.username.split('@')[0],
+            'email': request.user.email or request.user.username,
+            'location': profile_obj.location,
+            'phone': profile_obj.phone,
+            'cooperative_name': profile_obj.cooperative_name,
+            'gender': profile_obj.gender,
+            'blood_group': profile_obj.blood_group,
+            'about': profile_obj.about,
+            'profile_photo_url': photo_url,
+            'created_at': profile_obj.created_at.isoformat(),
+            'updated_at': profile_obj.updated_at.isoformat(),
+        }
+
     profile, _ = FarmerProfile.objects.get_or_create(user=request.user)
     if request.method == 'GET':
-        return Response({
-            'id': profile.id,
-            'location': profile.location,
-            'phone': profile.phone,
-            'cooperative_name': profile.cooperative_name,
-            'created_at': profile.created_at.isoformat(),
-        })
+        return Response(_serialize_profile(profile))
+
     # PATCH
-    data = _get_payload(request)
+    data = request.data if hasattr(request, 'data') and request.data is not None else _get_payload(request)
     if 'location' in data:
         profile.location = str(data['location'])[:200]
     if 'phone' in data:
         profile.phone = str(data['phone'])[:20]
     if 'cooperative_name' in data:
         profile.cooperative_name = str(data['cooperative_name'])[:200]
+    if 'gender' in data:
+        profile.gender = str(data['gender'])[:20]
+    if 'blood_group' in data:
+        profile.blood_group = str(data['blood_group'])[:10]
+    if 'about' in data:
+        profile.about = str(data['about'])[:4000]
+
+    full_name = data.get('full_name') if hasattr(data, 'get') else None
+    if full_name is not None:
+        request.user.first_name = str(full_name)[:150]
+        request.user.save(update_fields=['first_name'])
+
+    photo_file = request.FILES.get('profile_photo') if hasattr(request, 'FILES') else None
+    if photo_file is not None:
+        content_type = getattr(photo_file, 'content_type', '') or ''
+        if not content_type.startswith('image/'):
+            return Response({'error': 'Profile photo must be an image.'}, status=status.HTTP_400_BAD_REQUEST)
+        if getattr(photo_file, 'size', 0) > 5 * 1024 * 1024:
+            return Response({'error': 'Profile photo must be 5MB or smaller.'}, status=status.HTTP_400_BAD_REQUEST)
+        if profile.profile_photo:
+            try:
+                profile.profile_photo.delete(save=False)
+            except Exception:
+                pass
+        profile.profile_photo = photo_file
+
     profile.save()
-    return Response({
-        'id': profile.id,
-        'location': profile.location,
-        'phone': profile.phone,
-        'cooperative_name': profile.cooperative_name,
-        'updated_at': profile.updated_at.isoformat(),
-    })
+    return Response(_serialize_profile(profile))
 
 
 # Rwanda required loan documents (for display and upload)
@@ -669,7 +802,17 @@ def farmer_applications(request):
             app.eligibility_approved = predict_eligibility(payload)
             app.eligibility_reason = eligibility_reason(payload, app.eligibility_approved, app_lang)
             app.risk_score = predict_risk(payload)
-            app.recommended_amount = recommend_loan_amount(payload) if app.eligibility_approved else None
+            if app.eligibility_approved:
+                raw_rec_usd = recommend_loan_amount(payload)
+                # Cap recommended amount to 35% DTI affordable maximum
+                annual_income_usd = float(app.annual_income) / _RWF_TO_USD
+                monthly_income_usd = annual_income_usd / 12
+                duration = int(app.loan_duration_months) or 24
+                max_affordable_usd = monthly_income_usd * _MAX_DTI * duration
+                rec_usd = min(raw_rec_usd, max_affordable_usd)
+                app.recommended_amount = rec_usd * _RWF_TO_USD
+            else:
+                app.recommended_amount = None
         except FileNotFoundError:
             return Response({'error': 'ML models not available'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as e:
@@ -691,7 +834,7 @@ def farmer_applications(request):
             'created_at': app.created_at.isoformat(),
         }, status=status.HTTP_201_CREATED)
     # GET
-    apps = LoanApplication.objects.filter(user=request.user).prefetch_related('status_updates', 'documents').order_by('-created_at')[:50]
+    apps = LoanApplication.objects.filter(user=request.user).prefetch_related('status_updates', 'documents', 'messages__sender').order_by('-created_at')[:50]
     data = []
     for a in apps:
         history = [
@@ -713,6 +856,16 @@ def farmer_applications(request):
             }
             for d in a.documents.all()
         ]
+        messages = [
+            {
+                'id': m.id,
+                'message': m.message,
+                'sender_name': getattr(m.sender, 'first_name', None) or getattr(m.sender, 'username', '') or 'MFI Officer',
+                'sender_role': _user_role(m.sender),
+                'created_at': m.created_at.isoformat(),
+            }
+            for m in a.messages.all().order_by('-created_at')[:10]
+        ]
         created_short = a.created_at.strftime('%Y%m%d')
         farmer_label = _safe_filename_part(getattr(a.user, 'first_name', '') or a.user.username.split('@')[0], fallback='farmer')
         data.append({
@@ -725,6 +878,7 @@ def farmer_applications(request):
             'recommended_amount': float(a.recommended_amount) if a.recommended_amount else None,
             'created_at': a.created_at.isoformat(),
             'status_history': history,
+            'messages': messages,
             'documents': docs,
             'folder_name': f"{farmer_label}_{created_short}_application_{a.id}",
             'package_download_url': f"/api/farmer/applications/{a.id}/package/",
@@ -994,12 +1148,19 @@ def mfi_applications(request):
     if not _is_microfinance(request.user):
         return Response({'error': 'Microfinance access required'}, status=status.HTTP_403_FORBIDDEN)
     status_filter = (request.query_params.get('status', 'all') or 'all').strip().lower()
-    qs = LoanApplication.objects.select_related('user').prefetch_related('status_updates', 'documents')
+    qs = LoanApplication.objects.select_related('user', 'user__farmer_profile').prefetch_related('status_updates', 'documents', 'messages__sender')
     if status_filter and status_filter != 'all':
         qs = qs.filter(status=status_filter)
     qs = qs.order_by('-created_at')[:200]
     data = []
     for a in qs:
+        farmer_profile = getattr(a.user, 'farmer_profile', None)
+        farmer_photo_url = None
+        if farmer_profile and getattr(farmer_profile, 'profile_photo', None):
+            try:
+                farmer_photo_url = request.build_absolute_uri(farmer_profile.profile_photo.url)
+            except Exception:
+                farmer_photo_url = farmer_profile.profile_photo.url
         history = [
             {
                 'status': u.status,
@@ -1020,6 +1181,15 @@ def mfi_applications(request):
                 'file_url': file_url,
                 'uploaded_at': d.uploaded_at.isoformat(),
             })
+        messages = [
+            {
+                'id': m.id,
+                'message': m.message,
+                'sender_name': getattr(m.sender, 'first_name', None) or getattr(m.sender, 'username', '') or 'MFI Officer',
+                'created_at': m.created_at.isoformat(),
+            }
+            for m in a.messages.all().order_by('-created_at')[:10]
+        ]
         created_short = a.created_at.strftime('%Y%m%d')
         farmer_label = _safe_filename_part(getattr(a.user, 'first_name', '') or a.user.username.split('@')[0], fallback='farmer')
         data.append({
@@ -1027,6 +1197,14 @@ def mfi_applications(request):
             'user_id': a.user_id,
             'user_email': a.user.username,
             'user_name': getattr(a.user, 'first_name', '') or '',
+            'farmer_profile': {
+                'location': getattr(farmer_profile, 'location', '') if farmer_profile else '',
+                'phone': getattr(farmer_profile, 'phone', '') if farmer_profile else '',
+                'cooperative_name': getattr(farmer_profile, 'cooperative_name', '') if farmer_profile else '',
+                'gender': getattr(farmer_profile, 'gender', '') if farmer_profile else '',
+                'about': getattr(farmer_profile, 'about', '') if farmer_profile else '',
+                'profile_photo_url': farmer_photo_url,
+            },
             'loan_amount_requested': float(a.loan_amount_requested),
             'loan_duration_months': a.loan_duration_months,
             'employment_status': a.employment_status,
@@ -1039,6 +1217,7 @@ def mfi_applications(request):
             'status': a.status,
             'created_at': a.created_at.isoformat(),
             'status_history': history,
+            'messages': messages,
             'documents': docs,
             'folder_name': f"{farmer_label}_{created_short}_application_{a.id}",
             'package_download_url': f"/api/mfi/applications/{a.id}/package/",
@@ -1224,6 +1403,13 @@ def mfi_update_application_status(request, pk):
         ApplicationStatusUpdate.objects.create(
             application=app, status=new_status, note=note, updated_by=request.user,
         )
+        if new_status == 'documents_requested' and note:
+            LoanApplicationMessage.objects.create(
+                application=app,
+                sender=request.user,
+                recipient=app.user,
+                message=note,
+            )
     app.save()
     history = _application_status_history(app)
     return Response({
@@ -1233,6 +1419,36 @@ def mfi_update_application_status(request, pk):
         'reviewed_at': app.reviewed_at.isoformat() if app.reviewed_at else None,
         'rejection_reason': app.rejection_reason if app.status == 'rejected' else None,
     })
+
+
+@swagger_auto_schema(method='post', operation_description='Send message to the farmer for a specific application. MFI only.', tags=['MFI'])
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mfi_send_application_message(request, pk):
+    """POST /api/mfi/applications/<id>/messages/ — Send a direct message to the farmer for this application."""
+    if not _is_microfinance(request.user):
+        return Response({'error': 'Microfinance access required'}, status=status.HTTP_403_FORBIDDEN)
+    data = _get_payload(request)
+    message = (data.get('message') or '').strip()[:2000]
+    if not message:
+        return Response({'error': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        app = LoanApplication.objects.select_related('user').get(pk=pk)
+    except LoanApplication.DoesNotExist:
+        return Response({'error': 'Application not found'}, status=status.HTTP_404_NOT_FOUND)
+    msg = LoanApplicationMessage.objects.create(
+        application=app,
+        sender=request.user,
+        recipient=app.user,
+        message=message,
+    )
+    return Response({
+        'id': msg.id,
+        'application_id': app.id,
+        'message': msg.message,
+        'sender_name': getattr(request.user, 'first_name', None) or getattr(request.user, 'username', '') or 'MFI Officer',
+        'created_at': msg.created_at.isoformat(),
+    }, status=status.HTTP_201_CREATED)
 
 
 @swagger_auto_schema(method='post', operation_description='Approve or reject loan application. MFI only.', tags=['MFI'])

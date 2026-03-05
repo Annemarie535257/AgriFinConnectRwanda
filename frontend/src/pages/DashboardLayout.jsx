@@ -32,6 +32,8 @@ const FARMER_SUB_NAV = [
 
 const MFI_SUB_NAV = [
   { tab: 'applications', tKey: 'dashboard.reviewApplications', Icon: ApplicationIcon },
+  { tab: 'farmers', tKey: 'mfi.farmersProfiles', fallback: 'Farmers', Icon: UsersIcon },
+  { tab: 'communication', tKey: 'mfi.communication', fallback: 'Communication', Icon: UsersIcon },
   { tab: 'portfolio', tKey: 'mfi.portfolio', Icon: PortfolioIcon },
 ];
 
@@ -40,6 +42,14 @@ const ADMIN_SUB_NAV = [
   { tab: 'users', tKey: 'dashboard.users', Icon: UsersIcon },
   { tab: 'stats', tKey: 'admin.stats', fallback: 'Stats', Icon: ChartIcon },
 ];
+
+function normalizeRole(rawRole) {
+  const role = String(rawRole || '').trim().toLowerCase();
+  if (role === 'farmer' || role === 'farmers') return 'farmer';
+  if (role === 'microfinance' || role === 'microfinances' || role === 'mfi') return 'microfinance';
+  if (role === 'admin') return 'admin';
+  return null;
+}
 
 export default function DashboardLayout() {
   const { t } = useLanguage();
@@ -53,24 +63,39 @@ export default function DashboardLayout() {
     try {
       const u = localStorage.getItem('agrifinconnect-user');
       const parsed = u ? JSON.parse(u) : null;
-      setUserRole(parsed?.role || null);
+      setUserRole(normalizeRole(parsed?.role));
     } catch {
       setUserRole(null);
     }
   }, []);
 
-  const links = userRole
-    ? ALL_DASHBOARD_LINKS.filter((l) => l.role === userRole)
-    : ALL_DASHBOARD_LINKS;
-
   const isFarmer = location.pathname === '/dashboard/farmer';
   const isMfi = location.pathname === '/dashboard/microfinance';
   const isAdmin = location.pathname === '/dashboard/admin';
 
+  const roleFromPath = isFarmer ? 'farmer' : isMfi ? 'microfinance' : isAdmin ? 'admin' : null;
+  const effectiveRole = roleFromPath || userRole;
+
+  useEffect(() => {
+    if (!userRole) return;
+    const rolePath = `/dashboard/${userRole}`;
+    if (!roleFromPath) {
+      navigate(rolePath, { replace: true });
+      return;
+    }
+    if (roleFromPath !== userRole) {
+      navigate(rolePath, { replace: true });
+    }
+  }, [userRole, roleFromPath, navigate]);
+
+  const links = effectiveRole
+    ? ALL_DASHBOARD_LINKS.filter((l) => l.role === effectiveRole)
+    : (roleFromPath ? ALL_DASHBOARD_LINKS.filter((l) => l.role === roleFromPath) : ALL_DASHBOARD_LINKS);
+
   const rawTab = searchParams.get('tab');
   const defaultTab = isFarmer ? 'apply' : isMfi ? 'applications' : 'activity';
   const validFarmerTabs = ['apply', 'applications', 'loans', 'repayments', 'farm', 'profile'];
-  const validMfiTabs = ['applications', 'portfolio'];
+  const validMfiTabs = ['applications', 'farmers', 'communication', 'portfolio'];
   const validAdminTabs = ['activity', 'users', 'stats'];
   const validTabs = isFarmer ? validFarmerTabs : isMfi ? validMfiTabs : isAdmin ? validAdminTabs : [];
   const activeTab = (rawTab && validTabs.includes(rawTab)) ? rawTab : defaultTab;

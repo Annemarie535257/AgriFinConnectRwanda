@@ -107,6 +107,10 @@ class FarmerProfile(models.Model):
     location = models.CharField(max_length=200, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     cooperative_name = models.CharField(max_length=200, blank=True)
+    gender = models.CharField(max_length=20, blank=True)
+    blood_group = models.CharField(max_length=10, blank=True)
+    about = models.TextField(blank=True)
+    profile_photo = models.ImageField(upload_to='farmer_profiles/%Y/%m/', null=True, blank=True, max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -264,6 +268,34 @@ class ApplicationStatusUpdate(models.Model):
 
     def __str__(self):
         return f"App #{self.application_id} → {self.status}"
+
+
+class LoanApplicationMessage(models.Model):
+    """Direct messages on a loan application (e.g., document requests from MFI to farmer)."""
+    application = models.ForeignKey(
+        'LoanApplication',
+        on_delete=models.CASCADE,
+        related_name='messages',
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sent_application_messages',
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='received_application_messages',
+    )
+    message = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'api_loanapplicationmessage'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Message on App #{self.application_id}"
 
 
 class LoanApplication(models.Model):

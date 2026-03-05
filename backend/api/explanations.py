@@ -203,23 +203,41 @@ def eligibility_reason(payload, approved, language="en"):
             reasons.append(_tr(lang, "profile_meets"))
         return _tr(lang, "approved_prefix") + " ".join(reasons)
     else:
+        detailed = []
         if credit < 600:
             reasons.append(_tr(lang, "credit_low", int(credit)))
+            detailed.append(f"credit score {int(credit)} is below the preferred range (about 600+)")
         if dti > 0.45:
             reasons.append(_tr(lang, "high_dti", dti))
+            detailed.append(f"debt-to-income ratio is {dti:.0%}, which is higher than the safer range (<=45%)")
         if prev_defaults > 0:
             reasons.append(_tr(lang, "prev_defaults"))
+            detailed.append(f"profile shows {int(prev_defaults)} previous default(s)")
         if bankruptcy > 0:
             reasons.append(_tr(lang, "bankruptcy_hist"))
+            detailed.append("bankruptcy history increases repayment uncertainty")
         if employment == "Unemployed":
             reasons.append(_tr(lang, "employment_status"))
+            detailed.append("employment status indicates unstable monthly cash flow")
         if income < 30000 and loan_amt > 10000:
             reasons.append(_tr(lang, "income_insufficient"))
+            detailed.append(f"annual income ({income:,.0f}) is low relative to the requested loan amount ({loan_amt:,.0f})")
         if payment_hist < 15:
             reasons.append(_tr(lang, "weak_payment"))
+            detailed.append(f"payment history score ({payment_hist:.0f}) is weak")
+
         if not reasons:
             reasons.append(_tr(lang, "combined_risk"))
-        return _tr(lang, "denied_prefix") + ", ".join(reasons)
+            detailed.append("multiple profile indicators together raised the predicted repayment risk")
+
+        summary = _tr(lang, "denied_prefix") + ", ".join(reasons)
+        profile_snapshot = (
+            f" Profile summary: income={income:,.0f}, requested={loan_amt:,.0f}, "
+            f"credit={int(credit)}, DTI={dti:.0%}, employment={employment}, "
+            f"defaults={int(prev_defaults)}, bankruptcy={int(bankruptcy)}, payment_history={payment_hist:.0f}."
+        )
+        detail_text = " Detailed factors: " + "; ".join(detailed) + "."
+        return summary + profile_snapshot + detail_text
 
 
 def risk_score_description(risk_score, language="en"):

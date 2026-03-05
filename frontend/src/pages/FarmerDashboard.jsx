@@ -14,6 +14,7 @@ import {
   predictEligibility,
   predictRisk,
   recommendLoanAmount,
+  forgotPassword,
 } from '../api/client';
 import FloatingChatbot from '../components/FloatingChatbot';
 import DashboardTopBar from '../components/DashboardTopBar';
@@ -24,22 +25,82 @@ import './FarmerDashboard.css';
 const EMPLOYMENT_OPTIONS = ['Employed', 'Self-Employed', 'Unemployed'];
 const EDUCATION_OPTIONS = ['High School', 'Associate', 'Bachelor', 'Master'];
 const MARITAL_OPTIONS = ['Single', 'Married', 'Divorced'];
-const PURPOSE_OPTIONS = ['Other', 'Education', 'Home', 'Debt Consolidation'];
+const PURPOSE_OPTIONS = ['Farming', 'Education', 'Home', 'Debt Consolidation', 'Other'];
 
-/** Map farmer form to ML model API payload (PascalCase) */
+// The ML models were trained on USD-scale data. All RWF monetary values
+// must be divided by this factor before being sent to the model endpoints.
+const RWF_TO_USD = 1350;
+
+/** Map farmer form to ML model API payload (PascalCase, USD-normalised + distribution-scaled) */
 function formToMlPayload(form) {
+  // The model was trained on US incomes (~$57k mean). Scale up proportionally
+  // so the profile sits within the training distribution while keeping ratios intact.
+  const TARGET_INCOME_USD = 45000;
+
+  const incomeUSDRaw = (Number(form.annual_income) || 600000) / RWF_TO_USD;
+  const loanUSDRaw   = (Number(form.loan_amount_requested) || 200000) / RWF_TO_USD;
+  const loanDuration = Number(form.loan_duration_months) || 24;
+
+  const scale      = incomeUSDRaw > 0 ? Math.max(TARGET_INCOME_USD / incomeUSDRaw, 1.0) : 1.0;
+  const incomeUSD  = incomeUSDRaw * scale;
+  const loanUSD    = loanUSDRaw   * scale;  // ratio preserved exactly
+
+  const monthlyIncome  = incomeUSD / 12;
+  const monthlyPayment = loanUSD   / loanDuration;
+
+  // DTI from original values so the ratio stays accurate
+  const dti = incomeUSDRaw > 0
+    ? Math.min((loanUSDRaw / loanDuration) / (incomeUSDRaw / 12), 0.95)
+    : 0.35;
+
+  const savings     = incomeUSD * 0.15;
+  const checking    = incomeUSD * 0.08;
+  const totalAssets = incomeUSD * 1.50;
+  const liabilities = incomeUSD * 0.20;
+  const netWorth    = totalAssets - liabilities;
+
+  // 'Farming' is not in the model's LoanPurpose vocabulary; map to 'Other'
+  const loanPurpose = ['Debt Consolidation', 'Education', 'Home', 'Other'].includes(form.loan_purpose)
+    ? form.loan_purpose
+    : 'Other';
   return {
     Age: Number(form.age) || 35,
-    AnnualIncome: Number(form.annual_income) || 600000,
+    AnnualIncome: incomeUSD,
     CreditScore: Number(form.credit_score) || 600,
-    LoanAmount: Number(form.loan_amount_requested) || 200000,
-    LoanDuration: Number(form.loan_duration_months) || 24,
+    LoanAmount: loanUSD,
+    LoanDuration: loanDuration,
     EmploymentStatus: form.employment_status || 'Self-Employed',
     EducationLevel: form.education_level || 'High School',
     MaritalStatus: form.marital_status || 'Married',
-    LoanPurpose: form.loan_purpose || 'Other',
-    DebtToIncomeRatio: 0.35,
+    LoanPurpose: loanPurpose,
+    HomeOwnershipStatus: 'Own',
+    DebtToIncomeRatio: Math.round(dti * 10000) / 10000,
+    TotalDebtToIncomeRatio: Math.round(dti * 10000) / 10000,
+    MonthlyIncome: monthlyIncome,
+    MonthlyLoanPayment: monthlyPayment,
+    MonthlyDebtPayments: monthlyPayment,
+    SavingsAccountBalance: savings,
+    CheckingAccountBalance: checking,
+    TotalAssets: totalAssets,
+    TotalLiabilities: liabilities,
+    NetWorth: netWorth,
+    PaymentHistory: 25,       // training mean=24, std=4.85 — 85 was 12.6σ above mean!
+    UtilityBillsPaymentHistory: 0.90,
+    PreviousLoanDefaults: 0,
+    BankruptcyHistory: 0,
+    LengthOfCreditHistory: 8,
+    NumberOfCreditInquiries: 1,
+    NumberOfOpenCreditLines: 2,
+    CreditCardUtilizationRate: 0.20,
   };
+}
+
+function profileNameFromUser(user) {
+  return (
+    user?.name ||
+    user?.first_name ||
+    ''
+  );
 }
 
 export default function FarmerDashboard() {
@@ -47,7 +108,26 @@ export default function FarmerDashboard() {
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'apply';
   const [activeFarmTab, setActiveFarmTab] = useState('employees'); // 'employees' | 'fertilizers' | 'seeds' | 'production'
+  const [user, setUser] = useState(() => {
+    try {
+      const raw = localStorage.getItem('agrifinconnect-user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [profile, setProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    location: '',
+    phone: '',
+    cooperative_name: '',
+    gender: '',
+    about: '',
+  });
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
   const [applications, setApplications] = useState([]);
   const [loans, setLoans] = useState([]);
   const [repayments, setRepayments] = useState([]);
@@ -57,6 +137,7 @@ export default function FarmerDashboard() {
   const [downloadingPackageId, setDownloadingPackageId] = useState(null);
   const [modelLoading, setModelLoading] = useState(null); // 'eligibility' | 'risk' | 'recommend' | null
   const [modelResults, setModelResults] = useState({ eligibility: null, risk: null, recommend: null });
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Form state for loan application
   const [form, setForm] = useState({
@@ -68,12 +149,14 @@ export default function FarmerDashboard() {
     employment_status: 'Self-Employed',
     education_level: 'High School',
     marital_status: 'Married',
-    loan_purpose: 'Other',
+    loan_purpose: 'Farming',
     // Farming / what they're planting
     farming_crops_or_activity: '',
     farming_land_size_hectares: '',
+    farming_land_size_unit: 'ha',
     farming_season: '',
     farming_estimated_yield: '',
+    farming_yield_unit: 'kg',
     farming_livestock: '',
     farming_notes: '',
   });
@@ -133,6 +216,7 @@ export default function FarmerDashboard() {
     crop: '',
     season: '',
     area_hectares: '',
+    area_unit: 'ha',
     planting_date: '',
     harvest_date: '',
     harvested_quantity: '',
@@ -189,6 +273,19 @@ export default function FarmerDashboard() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setProfileForm({
+      full_name: profile?.full_name || profileNameFromUser(user) || 'Farmer',
+      location: profile?.location || '',
+      phone: profile?.phone || '',
+      cooperative_name: profile?.cooperative_name || '',
+      gender: profile?.gender || '',
+      about: profile?.about || '',
+    });
+    setProfilePhotoPreview(profile?.profile_photo_url || '');
+    setProfilePhotoFile(null);
+  }, [profile, user]);
 
   useEffect(() => {
     getRequiredDocuments(language)
@@ -296,6 +393,7 @@ export default function FarmerDashboard() {
       crop: '',
       season: '',
       area_hectares: '',
+      area_unit: 'ha',
       planting_date: '',
       harvest_date: '',
       harvested_quantity: '',
@@ -405,7 +503,23 @@ export default function FarmerDashboard() {
     setError(null);
     setSuccess(null);
     try {
-      const res = await submitFarmerApplication({ ...form, language });
+      // Convert land size and yield to standard units (ha, kg) before submitting
+      const submittedForm = { ...form, language };
+      if (form.farming_land_size_hectares !== '' && form.farming_land_size_hectares !== undefined) {
+        const raw = parseFloat(form.farming_land_size_hectares) || 0;
+        if (form.farming_land_size_unit === 'acres') submittedForm.farming_land_size_hectares = raw * 0.404686;
+        else if (form.farming_land_size_unit === 'm2') submittedForm.farming_land_size_hectares = raw / 10000;
+        else if (form.farming_land_size_unit === 'are') submittedForm.farming_land_size_hectares = raw * 0.01;
+        else submittedForm.farming_land_size_hectares = raw;
+      }
+      if (form.farming_estimated_yield !== '' && form.farming_estimated_yield !== undefined) {
+        const rawY = parseFloat(form.farming_estimated_yield) || 0;
+        if (form.farming_yield_unit === 'tonnes') submittedForm.farming_estimated_yield = rawY * 1000;
+        else if (form.farming_yield_unit === 'bags50') submittedForm.farming_estimated_yield = rawY * 50;
+        else if (form.farming_yield_unit === 'sacks25') submittedForm.farming_estimated_yield = rawY * 25;
+        else submittedForm.farming_estimated_yield = rawY;
+      }
+      const res = await submitFarmerApplication(submittedForm);
       const appId = res?.id;
       if (appId && typeof appId === 'number') {
         for (const [docType, file] of Object.entries(documentFiles)) {
@@ -431,11 +545,13 @@ export default function FarmerDashboard() {
         employment_status: 'Self-Employed',
         education_level: 'High School',
         marital_status: 'Married',
-        loan_purpose: 'Other',
+        loan_purpose: 'Farming',
         farming_crops_or_activity: '',
         farming_land_size_hectares: '',
+        farming_land_size_unit: 'ha',
         farming_season: '',
         farming_estimated_yield: '',
+        farming_yield_unit: 'kg',
         farming_livestock: '',
         farming_notes: '',
       });
@@ -486,16 +602,33 @@ export default function FarmerDashboard() {
     }
   };
 
+  const handleProfileFieldChange = (e) => {
+    const { name, value } = e.target;
+    setProfileForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleProfilePhotoChange = (e) => {
+    const selected = e.target.files?.[0] || null;
+    if (!selected) return;
+    setProfilePhotoFile(selected);
+    setProfilePhotoPreview(URL.createObjectURL(selected));
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = {
-      location: fd.get('location') || '',
-      phone: fd.get('phone') || '',
-      cooperative_name: fd.get('cooperative_name') || '',
-    };
-    setLoading(true);
+    const data = new FormData();
+    data.append('full_name', profileForm.full_name || '');
+    data.append('location', profileForm.location || '');
+    data.append('phone', profileForm.phone || '');
+    data.append('cooperative_name', profileForm.cooperative_name || '');
+    data.append('gender', profileForm.gender || '');
+    data.append('about', profileForm.about || '');
+    if (profilePhotoFile) {
+      data.append('profile_photo', profilePhotoFile);
+    }
+    setProfileSaving(true);
     setError(null);
+    setSuccess(null);
     try {
       const res = await updateFarmerProfile(data);
       setProfile(res);
@@ -503,7 +636,7 @@ export default function FarmerDashboard() {
     } catch (err) {
       setError(err.body?.error || err.message || 'Failed to update profile');
     } finally {
-      setLoading(false);
+      setProfileSaving(false);
     }
   };
 
@@ -524,6 +657,33 @@ export default function FarmerDashboard() {
       setError(err.body?.error || err.message || 'Failed to download package');
     } finally {
       setDownloadingPackageId(null);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    const email = (user?.email || user?.username || '').trim().toLowerCase();
+    if (!email) {
+      return;
+    }
+    setResetLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await forgotPassword({ email });
+      const msg =
+        res?.message ||
+        t('farmer.resetPasswordEmailSent') ||
+        'If an account exists with this email, a reset link has been sent.';
+      setSuccess(msg);
+    } catch (err) {
+      setError(
+        err.body?.error ||
+          err.message ||
+          t('farmer.errorResetPassword') ||
+          'Failed to start password reset.'
+      );
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -603,8 +763,9 @@ export default function FarmerDashboard() {
                 <input
                   type="number"
                   min={0}
+                  step={0.01}
                   value={form.loan_amount_requested}
-                  onChange={(e) => setForm({ ...form, loan_amount_requested: parseInt(e.target.value, 10) || 0 })}
+                  onChange={(e) => setForm({ ...form, loan_amount_requested: parseFloat(e.target.value) || 0 })}
                 />
               </label>
             </div>
@@ -690,15 +851,26 @@ export default function FarmerDashboard() {
               </div>
               <div className="farmer-dashboard__form-row">
                 <label>
-                  <span>{t('farmer.farmingLandSize') || 'Land size (hectares)'}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="0"
-                    value={form.farming_land_size_hectares}
-                    onChange={(e) => setForm({ ...form, farming_land_size_hectares: e.target.value })}
-                  />
+                  <span>{t('farmer.farmingLandSize') || 'Land size'}</span>
+                  <div className="farmer-dashboard__input-unit-group">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="0"
+                      value={form.farming_land_size_hectares}
+                      onChange={(e) => setForm({ ...form, farming_land_size_hectares: e.target.value })}
+                    />
+                    <select
+                      value={form.farming_land_size_unit}
+                      onChange={(e) => setForm({ ...form, farming_land_size_unit: e.target.value })}
+                    >
+                      <option value="ha">hectares (ha)</option>
+                      <option value="acres">acres</option>
+                      <option value="are">ares</option>
+                      <option value="m2">m²</option>
+                    </select>
+                  </div>
                 </label>
                 <label>
                   <span>{t('farmer.farmingSeason') || 'Season (e.g. Season A 2025)'}</span>
@@ -712,15 +884,27 @@ export default function FarmerDashboard() {
               </div>
               <div className="farmer-dashboard__form-row">
                 <label>
-                  <span>{t('farmer.farmingEstimatedYield') || 'Estimated yield (kg or value)'}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="0"
-                    value={form.farming_estimated_yield}
-                    onChange={(e) => setForm({ ...form, farming_estimated_yield: e.target.value })}
-                  />
+                  <span>{t('farmer.farmingEstimatedYield') || 'Estimated yield'}</span>
+                  <div className="farmer-dashboard__input-unit-group">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="0"
+                      value={form.farming_estimated_yield}
+                      onChange={(e) => setForm({ ...form, farming_estimated_yield: e.target.value })}
+                    />
+                    <select
+                      value={form.farming_yield_unit}
+                      onChange={(e) => setForm({ ...form, farming_yield_unit: e.target.value })}
+                    >
+                      <option value="kg">kg</option>
+                      <option value="tonnes">tonnes</option>
+                      <option value="bags50">bags (50 kg)</option>
+                      <option value="sacks25">sacks (25 kg)</option>
+                      <option value="rwf">RWF (value)</option>
+                    </select>
+                  </div>
                 </label>
                 <label>
                   <span>{t('farmer.farmingLivestock') || 'Livestock (if any)'}</span>
@@ -749,7 +933,7 @@ export default function FarmerDashboard() {
             {requiredDocuments.length > 0 && (
               <div className="farmer-dashboard__documents-section">
                 <h3 className="farmer-dashboard__documents-title">
-                  {t('farmer.requiredDocumentsTitle') || 'Required documents for loan application (Rwanda)'}
+                  {t('farmer.requiredDocumentsTitle') || 'Required documents for loan application'}
                 </h3>
                 <p className="farmer-dashboard__documents-intro">
                   {t('farmer.requiredDocumentsIntro') || 'You can upload documents now or after submitting. PDF or image (JPG, PNG) preferred.'}
@@ -860,7 +1044,7 @@ export default function FarmerDashboard() {
                             className="farmer-dashboard__model-btn farmer-dashboard__model-btn--small"
                             onClick={() => {
                               const amt = modelResults.recommend.recommended_amount ?? modelResults.recommend.recommendedAmount ?? modelResults.recommend.amount;
-                              if (amt != null) setForm((f) => ({ ...f, loan_amount_requested: Number(amt) }));
+                              if (amt != null) setForm((f) => ({ ...f, loan_amount_requested: parseFloat(amt) }));
                             }}
                           >
                             {t('farmer.modelUseAmount') || 'Use this amount'}
@@ -970,6 +1154,22 @@ export default function FarmerDashboard() {
 
                     <div className="farmer-dashboard__status-summary">
                       <p className="farmer-dashboard__status-summary-text">{statusSummary}</p>
+                    </div>
+
+                    <div className="farmer-dashboard__messages">
+                      <span className="farmer-dashboard__tracker-title">{t('farmer.messagesFromMfi') || 'Messages from microfinance'}</span>
+                      {app.messages?.length ? (
+                        <ul className="farmer-dashboard__messages-list">
+                          {app.messages.map((msg) => (
+                            <li key={`${app.id}-msg-${msg.id}`} className="farmer-dashboard__messages-item">
+                              <strong>{msg.sender_name}</strong>: {msg.message}
+                              <span>{new Date(msg.created_at).toLocaleString()}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="farmer-dashboard__package-empty">{t('farmer.noMessages') || 'No messages yet.'}</p>
+                      )}
                     </div>
 
                     <div className="farmer-dashboard__tracker">
@@ -1356,13 +1556,26 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Area (ha)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={productionForm.area_hectares}
-                        onChange={(e) => setProductionForm({ ...productionForm, area_hectares: e.target.value })}
-                      />
+                      <span>Area</span>
+                      <div className="farmer-dashboard__input-unit-group">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          placeholder="0"
+                          value={productionForm.area_hectares}
+                          onChange={(e) => setProductionForm({ ...productionForm, area_hectares: e.target.value })}
+                        />
+                        <select
+                          value={productionForm.area_unit}
+                          onChange={(e) => setProductionForm({ ...productionForm, area_unit: e.target.value })}
+                        >
+                          <option value="ha">ha</option>
+                          <option value="acres">acres</option>
+                          <option value="are">ares</option>
+                          <option value="m2">m²</option>
+                        </select>
+                      </div>
                     </label>
                   </div>
                   <div className="farmer-dashboard__form-row">
@@ -1419,7 +1632,7 @@ export default function FarmerDashboard() {
                       <tr>
                         <th>Crop</th>
                         <th>Season</th>
-                        <th>Area (ha)</th>
+                        <th>Area</th>
                         <th>Planting date</th>
                         <th>Harvest date</th>
                         <th>Harvested qty</th>
@@ -1431,7 +1644,7 @@ export default function FarmerDashboard() {
                         <tr key={p.id}>
                           <td>{p.crop}</td>
                           <td>{p.season}</td>
-                          <td>{p.area_hectares}</td>
+                          <td>{p.area_hectares}{p.area_unit ? ` ${p.area_unit}` : ' ha'}</td>
                           <td>{p.planting_date}</td>
                           <td>{p.harvest_date}</td>
                           <td>{p.harvested_quantity}</td>
@@ -1451,23 +1664,104 @@ export default function FarmerDashboard() {
 
         {activeTab === 'profile' && (
         <section className="farmer-dashboard__section" aria-labelledby="profile-heading">
-          <h2 id="profile-heading" className="farmer-dashboard__section-title">{t('farmer.profile') || 'Profile'}</h2>
-          <form className="farmer-dashboard__form" onSubmit={handleUpdateProfile}>
-            <label>
-              <span>{t('farmer.location') || 'Location'}</span>
-              <input name="location" defaultValue={profile?.location || ''} placeholder="e.g. Kigali" />
-            </label>
-            <label>
-              <span>{t('farmer.phone') || 'Phone'}</span>
-              <input name="phone" type="tel" defaultValue={profile?.phone || ''} placeholder="+250 788 000 000" />
-            </label>
-            <label>
-              <span>{t('farmer.cooperative') || 'Cooperative name'}</span>
-              <input name="cooperative_name" defaultValue={profile?.cooperative_name || ''} placeholder="Optional" />
-            </label>
-            <button type="submit" className="farmer-dashboard__submit" disabled={loading}>
-              {t('farmer.saveProfile') || 'Save profile'}
-            </button>
+          <h2 id="profile-heading" className="farmer-dashboard__section-title">
+            {t('farmer.profile') || 'Profile'}
+          </h2>
+          <form className="farmer-profile-modern" onSubmit={handleUpdateProfile}>
+            <div className="farmer-profile-modern__left">
+              <div className="farmer-profile-modern__avatar-shell">
+                {profilePhotoPreview ? (
+                  <img
+                    src={profilePhotoPreview}
+                    alt={profileForm.full_name || 'Farmer profile photo'}
+                    className="farmer-profile-modern__avatar-image"
+                  />
+                ) : (
+                  <div className="farmer-profile-modern__avatar-fallback">
+                    {(profileForm.full_name || 'F').trim().slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <h3 className="farmer-profile-modern__name">
+                {profileForm.full_name || 'Farmer'}
+              </h3>
+              <p className="farmer-profile-modern__meta"><strong>Email:</strong> {profile?.email || user?.email || user?.username || '—'}</p>
+              <label className="farmer-profile-modern__upload-btn">
+                {t('farmer.choosePhoto') || 'Choose picture'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfilePhotoChange}
+                  className="farmer-profile-modern__upload-input"
+                />
+              </label>
+              {profilePhotoFile && (
+                <p className="farmer-profile-modern__hint">{profilePhotoFile.name}</p>
+              )}
+            </div>
+
+            <div className="farmer-profile-modern__right">
+              <div className="farmer-profile-modern__card">
+                <h3 className="farmer-profile-modern__title">General Information</h3>
+                <div className="farmer-profile-modern__table">
+                  <div className="farmer-profile-modern__row">
+                    <span>Full Name</span>
+                    <span>:</span>
+                    <input name="full_name" value={profileForm.full_name} onChange={handleProfileFieldChange} />
+                  </div>
+                  <div className="farmer-profile-modern__row">
+                    <span>Location</span>
+                    <span>:</span>
+                    <input name="location" value={profileForm.location} onChange={handleProfileFieldChange} />
+                  </div>
+                  <div className="farmer-profile-modern__row">
+                    <span>Phone</span>
+                    <span>:</span>
+                    <input name="phone" value={profileForm.phone} onChange={handleProfileFieldChange} />
+                  </div>
+                  <div className="farmer-profile-modern__row">
+                    <span>Gender</span>
+                    <span>:</span>
+                    <input name="gender" value={profileForm.gender} onChange={handleProfileFieldChange} placeholder="Male/Female" />
+                  </div>
+                  <div className="farmer-profile-modern__row">
+                    <span>Cooperative</span>
+                    <span>:</span>
+                    <input name="cooperative_name" value={profileForm.cooperative_name} onChange={handleProfileFieldChange} placeholder={t('farmer.cooperativePlaceholder') || 'Optional'} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="farmer-profile-modern__card">
+                <h3 className="farmer-profile-modern__title">Other Information</h3>
+                <textarea
+                  name="about"
+                  value={profileForm.about}
+                  onChange={handleProfileFieldChange}
+                  className="farmer-profile-modern__about"
+                  placeholder="Add additional information about your farm profile"
+                />
+                <div className="farmer-profile-modern__actions">
+                  <button type="submit" className="farmer-dashboard__submit" disabled={profileSaving}>
+                    {profileSaving ? 'Updating...' : 'Update profile'}
+                  </button>
+                  <button
+                    type="button"
+                    className="farmer-profile-reset-btn"
+                    onClick={handleResetPassword}
+                    disabled={resetLoading}
+                  >
+                    {resetLoading
+                      ? t('getStarted.submitting') || 'Sending reset link…'
+                      : t('farmer.resetPassword') || 'Reset password'}
+                  </button>
+                </div>
+                <p className="farmer-profile-modern__hint">
+                  {t('farmer.resetPasswordHint') ||
+                    'We will send a password reset link to your email.'}
+                </p>
+              </div>
+            </div>
           </form>
         </section>
         )}

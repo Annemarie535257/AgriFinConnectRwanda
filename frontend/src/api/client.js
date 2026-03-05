@@ -9,14 +9,17 @@ const API_BASE =
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
+  const isFormDataBody = options.body instanceof FormData;
   const config = {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
       ...options.headers,
     },
   };
-  if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+  if (!isFormDataBody && !config.headers['Content-Type']) {
+    config.headers['Content-Type'] = 'application/json';
+  }
+  if (options.body && typeof options.body === 'object' && !isFormDataBody) {
     config.body = JSON.stringify(options.body);
   }
   const res = await fetch(url, config);
@@ -242,7 +245,7 @@ export async function getFarmerRepayments() {
 // ----- MFI APIs -----
 
 /** GET /api/mfi/applications */
-export async function getMfiApplications(status = 'pending') {
+export async function getMfiApplications(status = 'all') {
   return authRequest(`/mfi/applications/?status=${status}`);
 }
 
@@ -259,6 +262,14 @@ export async function updateMfiApplicationStatus(id, { status, note, amount, int
   return authRequest(`/mfi/applications/${id}/update-status/`, {
     method: 'POST',
     body: { status, note, amount, interest_rate, duration_months },
+  });
+}
+
+/** POST /api/mfi/applications/<id>/messages — send message to the farmer for this application */
+export async function sendMfiApplicationMessage(id, message) {
+  return authRequest(`/mfi/applications/${id}/messages/`, {
+    method: 'POST',
+    body: { message },
   });
 }
 

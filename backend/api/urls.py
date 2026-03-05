@@ -25,6 +25,7 @@ urlpatterns = [
     path('mfi/applications/<int:pk>/package/', views.mfi_application_package),
     path('mfi/applications/<int:pk>/update-status/', views.mfi_update_application_status),
     path('mfi/applications/<int:pk>/review/', views.mfi_review_application),
+    path('mfi/applications/<int:pk>/messages/', views.mfi_send_application_message),
     path('mfi/portfolio/', views.mfi_portfolio),
     # ML model APIs
     path('eligibility/', views.eligibility),
