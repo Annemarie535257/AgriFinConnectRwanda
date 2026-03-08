@@ -143,53 +143,69 @@ def recommend_amount(request):
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+def _chat_fallback_payload(language: str, err_msg: str = None):
+    """Shared fallback when chatbot model is unavailable or any error occurs."""
+    replies = {
+        'en': (
+            "Thank you for your message. The chatbot model is not available right now. "
+            "To apply for a loan, use the Loan Eligibility and Loan Amount Recommendation tools. "
+            "We support Kinyarwanda, English, and French."
+        ),
+        'fr': (
+            "Merci pour votre message. Le modèle du chatbot n'est pas disponible. "
+            "Pour demander un prêt, utilisez les outils d'éligibilité et de recommandation ci-dessus."
+        ),
+        'rw': (
+            "Murakoze kubutumwa. Modèle y'ikibazo ntabwo iri. "
+            "Kugira ngo usabe inguzanyo, koresha ibikoresho by'emera no gutoranya inguzanyo hejuru."
+        ),
+    }
+    reply = replies.get(language, replies['en'])
+    payload = {'reply': reply, 'response': reply}
+    if getattr(settings, 'DEBUG', False) and err_msg:
+        payload['chatbot_load_error'] = err_msg
+    return payload
+
+
 @swagger_auto_schema(method='post', operation_description='Multilingual chatbot (Kinyarwanda, English, French). POST message + language. Uses saved T5 model when available, with separate translation models for FR/RW.', request_body=_chat_request, responses={200: _chat_response}, tags=['Chatbot'])
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def chat(request):
     """POST /api/chat/ — Chatbot using saved T5 model (saved-model/); falls back to placeholder if unavailable."""
-    from api.chatbot_service import generate_reply
-    from api.translation_service import to_english, from_english
     payload = _get_payload(request)
     raw_message = (payload.get('message') or '').strip()
     language = (payload.get('language') or 'en').lower()
     if not raw_message:
         return Response({'reply': 'Please send a message.', 'response': 'Please send a message.'})
-    # If user is not in English, first translate question to English for the
-    # financial chatbot model, then translate the answer back.
-    question_for_model = to_english(raw_message, source_lang=language)
-    reply_en = generate_reply(question_for_model, language='en')
-    reply = reply_en
-    if reply is None:
-        # Fallback when model not loaded or generation failed
-        from api.chatbot_service import get_load_error
-        err_msg = get_load_error()
-        replies = {
-            'en': (
-                "Thank you for your message. The chatbot model is not available right now. "
-                "To apply for a loan, use the Loan Eligibility and Loan Amount Recommendation tools. "
-                "We support Kinyarwanda, English, and French."
-            ),
-            'fr': (
-                "Merci pour votre message. Le modèle du chatbot n'est pas disponible. "
-                "Pour demander un prêt, utilisez les outils d'éligibilité et de recommandation ci-dessus."
-            ),
-            'rw': (
-                "Murakoze kubutumwa. Modèle y'ikibazo ntabwo iri. "
-                "Kugira ngo usabe inguzanyo, koresha ibikoresho by'emera no gutoranya inguzanyo hejuru."
-            ),
-        }
-        reply = replies.get(language, replies['en'])
-        payload = {'reply': reply, 'response': reply}
-        if getattr(settings, 'DEBUG', False) and err_msg:
-            payload['chatbot_load_error'] = err_msg
-        return Response(payload)
-    # Translate final answer back to requested language (FR/RW) when needed.
-    final_reply = from_english(reply_en, target_lang=language)
-    resp = {'reply': final_reply, 'response': final_reply}
-    if getattr(settings, 'DEBUG', False) and language != 'en':
-        resp['source_reply_en'] = reply_en
-    return Response(resp)
+
+    try:
+        from api.chatbot_service import generate_reply, get_load_error
+        from api.translation_service import to_english, from_english
+        # If user is not in English, first translate question to English for the
+        # financial chatbot model, then translate the answer back.
+        question_for_model = to_english(raw_message, source_lang=language)
+        reply_en = generate_reply(question_for_model, language='en')
+        reply = reply_en
+        if reply is None:
+            err_msg = get_load_error()
+            return Response(_chat_fallback_payload(language, err_msg))
+        # Translate final answer back to requested language (FR/RW) when needed.
+        final_reply = from_english(reply_en, target_lang=language)
+        resp = {'reply': final_reply, 'response': final_reply}
+        if getattr(settings, 'DEBUG', False) and language != 'en':
+            resp['source_reply_en'] = reply_en
+        return Response(resp)
+    except Exception as e:
+        # Never return 500 for chat: model/env errors return 200 with fallback message
+        import logging
+        logging.getLogger(__name__).exception("Chat endpoint error: %s", e)
+        err_msg = str(e)
+        try:
+            from api.chatbot_service import get_load_error
+            err_msg = get_load_error() or err_msg
+        except Exception:
+            pass
+        return Response(_chat_fallback_payload(language, err_msg))
 
 
 # ----- Auth APIs (documented in Swagger) -----
