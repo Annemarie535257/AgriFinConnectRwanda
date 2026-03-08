@@ -273,7 +273,7 @@ export const translations = {
       settings: 'Settings',
       settingsDesc: 'Configure platform and model parameters.',
     },
-    apiError: 'Backend not connected. Run Django and ensure the API is available.',
+    apiError: 'Could not reach the API. If the backend is on Render, it may be waking up—try again in 30 seconds. Otherwise check that the API URL is set (e.g. VITE_API_URL on Netlify).',
     farmer: {
       applicationSubmitted: 'Application submitted successfully!',
       profileUpdated: 'Profile updated.',
@@ -628,7 +628,7 @@ export const translations = {
       settings: 'Paramètres',
       settingsDesc: 'Configurer la plateforme et les modèles.',
     },
-    apiError: "Backend non connecté. Démarrez Django et assurez-vous que l'API est disponible.",
+    apiError: "Impossible de joindre l'API. Si le backend est sur Render, il peut être en démarrage — réessayez dans 30 secondes.",
     farmer: {
       applicationSubmitted: 'Demande soumise avec succès !',
       profileUpdated: 'Profil mis à jour.',
@@ -981,7 +981,7 @@ export const translations = {
       settings: 'Igenamiterere',
       settingsDesc: 'Konoza porogaramu n\'imodeli.',
     },
-    apiError: 'Backend ntabwo ihuje. Tangira Django kandi API iboneke.',
+    apiError: 'API ntiyashoboye. Nimba backend iri kuri Render, irashobora kuba irakura — subira ugerageze munsi y\'amasegonda 30.',
     farmer: {
       applicationSubmitted: 'Gusaba byagenze neza!',
       profileUpdated: 'Profili yavuguruwe.',

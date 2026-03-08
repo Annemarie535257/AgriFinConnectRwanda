@@ -41,7 +41,7 @@ If the backend loads the chatbot from the Hub, the chat endpoint will return rea
 
 ## 3. Netlify – frontend calling the API
 
-The frontend uses `VITE_API_URL` at **build time**. For the **Netlify** app to call your Render API:
+The frontend uses `VITE_API_URL` at **build time** if set; if not set, it now **detects when it’s not on localhost** (e.g. on Netlify) and uses the Render API URL automatically. So the Netlify app should reach the backend even without env. For reliability, still set the env:
 
 1. **Netlify → Site settings → Environment variables**
    - Add:
@@ -72,3 +72,14 @@ Result:
 | Swagger | Open `https://agrifinconnectrwanda.onrender.com/swagger/` and try **POST /api/chat/**. |
 | Netlify → API | Set `VITE_API_URL=https://agrifinconnectrwanda.onrender.com/api` in Netlify env and redeploy. |
 | CORS | Set `CORS_ALLOWED_ORIGINS` on Render if you use a domain not already allowed. |
+
+---
+
+## "Backend not connected" on Netlify
+
+If the chatbot (or other API calls) show "Could not reach the API" or "Backend not connected":
+
+1. **Render may be sleeping** (free tier). Open `https://agrifinconnectrwanda.onrender.com` in a tab, wait until it loads, then try the chatbot again on Netlify.
+2. **Set `VITE_API_URL`** in Netlify to `https://agrifinconnectrwanda.onrender.com/api` and **redeploy** so the build uses the correct API.
+3. **CORS:** On Render, either leave `CORS_ALLOWED_ORIGINS` unset (backend allows `https://agrifinconnectrwanda.netlify.app` by default) or set it to include your Netlify URL:  
+   `https://agrifinconnectrwanda.netlify.app`
