@@ -112,8 +112,10 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # ML models path (saved .pkl from notebook)
 MODELS_DIR = PROJECT_ROOT / 'loan_default_risk_model'
 
-# Chatbot model directory (overrides default 'saved-model' in chatbot_service)
+# Chatbot model: local directory (overrides default 'saved-model' in chatbot_service)
 CHATBOT_MODEL_DIR = PROJECT_ROOT / 'AI_Chatbot_model'
+# When local dir is missing (e.g. on Render), load from Hugging Face Hub. Set to '' to disable.
+CHATBOT_MODEL_HF_REPO = os.environ.get('CHATBOT_MODEL_HF_REPO', 'Annemarie535257/agrifinconnect-chatbot')
 
 # Email (for password reset). Console backend prints to terminal in dev.
 EMAIL_BACKEND = os.environ.get('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
