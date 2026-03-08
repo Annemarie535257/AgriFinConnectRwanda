@@ -74,7 +74,7 @@ export default function GetStartedPage() {
       <header className="get-started-header">
         <div className="get-started-header__inner">
           <Link to="/" className="get-started-header__logo">
-            <img src="/logo (3).png" alt="AgriFinConnect Rwanda" className="get-started-header__logo-img" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="AgriFinConnect Rwanda" className="get-started-header__logo-img" />
           </Link>
           <div className="get-started-header__lang">
             <select

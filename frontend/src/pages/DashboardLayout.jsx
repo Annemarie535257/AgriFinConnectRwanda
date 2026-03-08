@@ -109,7 +109,7 @@ export default function DashboardLayout() {
       <aside className="dashboard-sidebar">
         <div className="dashboard-sidebar__brand">
           <Link to="/" className="dashboard-sidebar__logo">
-            <img src="/logo (3).png" alt="" className="dashboard-sidebar__logo-img" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="dashboard-sidebar__logo-img" />
           </Link>
           <span className="dashboard-sidebar__brand-name">AgriFinConnect</span>
         </div>

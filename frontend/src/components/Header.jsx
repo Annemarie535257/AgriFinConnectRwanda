@@ -20,7 +20,7 @@ export default function Header() {
     <header className="header">
       <div className="header__inner">
         <Link to="/" className="header__logo" onClick={() => setMenuOpen(false)}>
-          <img src="/logo (3).png" alt="AgriFinConnect Rwanda" className="header__logo-img" />
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="AgriFinConnect Rwanda" className="header__logo-img" />
         </Link>
         <div className="header__right">
           <button

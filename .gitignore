@@ -1,4 +1,5 @@
 venv/
+venv_export/
 __pycache__/
 *.pyc
 *.pyo
@@ -18,3 +19,6 @@ htmlcov/
 
 # Dataset from Hugging Face (use notebooks to download; not needed for frontend deploy)
 datasets/Bitext-mortgage-loans-llm-chatbot-training-dataset/
+
+# Keep locally for now (remove this line when ready to push)
+Notebooks/train_document_fraud_ai_altered_model.ipynb

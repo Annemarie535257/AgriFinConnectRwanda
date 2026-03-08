@@ -22,7 +22,7 @@ export default function Footer() {
         <div className="footer__top">
           <div className="footer__brand">
             <Link to="/" className="footer__logo-link">
-              <img src="/logo (3).png" alt="AgriFinConnect Rwanda" className="footer__logo-img" />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="AgriFinConnect Rwanda" className="footer__logo-img" />
             </Link>
             <p className="footer__tagline">{t('footer.tagline')}</p>
           </div>

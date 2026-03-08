@@ -18,6 +18,33 @@ The app is deployed and using the live APIs:
 - **Database:** Currently using SQLite on Render for testing. For persistent production data, I will add PostgreSQL on Render and set `DATABASE_URL`.
 - **Repo:** [https://github.com/Annemarie535257/AgriFinConnectRwanda.git](https://github.com/Annemarie535257/AgriFinConnectRwanda.git)
 
+### Connecting the chatbot to your Netlify app
+
+The Netlify frontend already talks to the Render backend by default. To make sure the **chatbot** works end-to-end:
+
+1. **Frontend (Netlify)**  
+   - The app uses `https://agrifinconnectrwanda.onrender.com/api` in production (see `frontend/src/api/client.js`).  
+   - If your backend is at a different URL, in Netlify set a **build** environment variable:  
+     **Key:** `VITE_API_URL`  
+     **Value:** your API base, e.g. `https://your-backend.onrender.com/api` (no trailing slash).  
+   - Redeploy so the build picks up the variable.
+
+2. **Backend (Render)**  
+   - **CORS:** So the browser allows requests from your Netlify site, set on Render:  
+     **Key:** `CORS_ALLOWED_ORIGINS`  
+     **Value:** your Netlify URL, e.g. `https://agrifinconnectrwanda.netlify.app`  
+     (If you use a custom domain, add that too, comma-separated.)  
+   - **Chatbot model:** The `/api/chat/` endpoint needs the T5 model. On Render, either:  
+     - Include `AI_Chatbot_model/` in your repo (or a build step that downloads/copies it into the project root), or  
+     - Set `CHATBOT_MODEL_DIR` to a path where the model is available on the server.  
+   - If the model is missing, the API still responds but returns a “chatbot model is not available” message.
+
+3. **Chatbot "TensorFlow not found" on Render:** If Swagger shows that error, run locally `python backend/export_chatbot_to_pytorch.py` to export the model to PyTorch, then redeploy; or ensure `backend/runtime.txt` is Python 3.11.
+
+4. **Check**  
+   - Open your Netlify app → floating chatbot or “Try Models” chatbot card → send a message.  
+   - CORS/network issues usually show as “API error” or failed network; model issues show as the backend’s “model not available” text.
+
 ```bash
 git clone https://github.com/Annemarie535257/AgriFinConnectRwanda.git
 ```
@@ -353,12 +380,13 @@ Backend (`backend/config/settings.py`):
 - `DJANGO_SECRET_KEY` — Django secret key (use a strong value in production)
 - `DJANGO_DEBUG` — `"1"` for debug, `"0"` for production
 - `DJANGO_ALLOWED_HOSTS` — Comma‑separated hostnames
+- `CORS_ALLOWED_ORIGINS` — Comma‑separated frontend origins (e.g. `https://agrifinconnectrwanda.netlify.app`) so the Netlify app can call the API and use the chatbot
 - `PASSWORD_RESET_FRONTEND_URL` — Base URL of the frontend (for password reset links)
 - `DJANGO_EMAIL_BACKEND`, `DJANGO_FROM_EMAIL` — Email configuration for password reset
 
-Frontend:
+Frontend (build-time; e.g. in Netlify **Build** env):
 
-- `VITE_API_URL` — Optional; overrides the `/api` proxy base in production builds
+- `VITE_API_URL` — Optional; full API base URL in production (e.g. `https://agrifinconnectrwanda.onrender.com/api`). If unset, the app uses that Render URL by default so the chatbot and other APIs work from the Netlify deploy
 
 ---
 

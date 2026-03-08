@@ -9,6 +9,7 @@
   "decoder_start_token_id": 0,
   "dense_act_fn": "gelu_new",
   "dropout_rate": 0.1,
+  "dtype": "float32",
   "eos_token_id": 1,
   "feed_forward_proj": "gated-gelu",
   "initializer_factor": 1.0,
@@ -54,7 +55,7 @@
     }
   },
   "tie_word_embeddings": false,
-  "transformers_version": "4.57.0",
+  "transformers_version": "4.57.6",
   "use_cache": true,
   "vocab_size": 32128
 }
