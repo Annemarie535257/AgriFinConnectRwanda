@@ -180,19 +180,22 @@ def chat(request):
 
     try:
         from api.chatbot_service import generate_reply, get_load_error
+        # English-only path: avoid importing translation_service so we never load
+        # MarianMT/transformers on Render (prevents worker timeout and OOM).
+        if language == 'en':
+            reply_en = generate_reply(raw_message, language='en')
+            if reply_en is None:
+                return Response(_chat_fallback_payload(language, get_load_error()))
+            return Response({'reply': reply_en, 'response': reply_en})
+        # FR/RW: translate question to English, run chatbot, translate answer back.
         from api.translation_service import to_english, from_english
-        # If user is not in English, first translate question to English for the
-        # financial chatbot model, then translate the answer back.
         question_for_model = to_english(raw_message, source_lang=language)
         reply_en = generate_reply(question_for_model, language='en')
-        reply = reply_en
-        if reply is None:
-            err_msg = get_load_error()
-            return Response(_chat_fallback_payload(language, err_msg))
-        # Translate final answer back to requested language (FR/RW) when needed.
+        if reply_en is None:
+            return Response(_chat_fallback_payload(language, get_load_error()))
         final_reply = from_english(reply_en, target_lang=language)
         resp = {'reply': final_reply, 'response': final_reply}
-        if getattr(settings, 'DEBUG', False) and language != 'en':
+        if getattr(settings, 'DEBUG', False):
             resp['source_reply_en'] = reply_en
         return Response(resp)
     except Exception as e:

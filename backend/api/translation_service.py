@@ -8,17 +8,20 @@ and use small MarianMT models to translate:
 
 This gives more reliable non-English answers than relying on the
 financial model itself to translate.
+
+Imports are inside _load_marian() so this module can be imported without
+loading transformers/torch (avoids OOM and worker timeout on Render when
+only English chat is used).
 """
 import logging
 from functools import lru_cache
-
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 logger = logging.getLogger(__name__)
 
 
 def _load_marian(model_name: str):
-    """Load a MarianMT tokenizer + model pair."""
+    """Load a MarianMT tokenizer + model pair. Imports here to avoid loading transformers at module import."""
+    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     return tokenizer, model
