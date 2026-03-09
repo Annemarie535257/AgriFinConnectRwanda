@@ -12,15 +12,17 @@ The app is deployed and using the live APIs:
 |------|-----|
 | **Live app (frontend)** | [https://agrifinconnectrwanda.netlify.app/](https://agrifinconnectrwanda.netlify.app/) |
 | **API docs (Swagger)** | [https://agrifinconnectrwanda.onrender.com/swagger/](https://agrifinconnectrwanda.onrender.com/swagger/) |
+| **Chatbot model (Hugging Face)** | [https://huggingface.co/Annemarie535257/agrifinconnect-chatbot](https://huggingface.co/Annemarie535257/agrifinconnect-chatbot) |
 
 - **Frontend:** Hosted on **Netlify**. Production builds are configured to call the Render API by default (no env var required).
 - **Backend:** Hosted on **Render**. CORS allows the Netlify origin; `ALLOWED_HOSTS` includes the Render domain.
+- **Chatbot model:** Fine-tuned **Flan-T5** model hosted on **Hugging Face Hub** at [`Annemarie535257/agrifinconnect-chatbot`](https://huggingface.co/Annemarie535257/agrifinconnect-chatbot). The backend loads from the Hub automatically when `CHATBOT_MODEL_HF_REPO` is set and no local model directory is found.
 - **Database:** Currently using SQLite on Render for testing. For persistent production data, I will add PostgreSQL on Render and set `DATABASE_URL`.
 - **Repo:** [https://github.com/Annemarie535257/AgriFinConnectRwanda.git](https://github.com/Annemarie535257/AgriFinConnectRwanda.git)
 
 ### Connecting the chatbot to your Netlify app
 
-The Netlify frontend already talks to the Render backend by default. To make sure the **chatbot** works end-to-end:
+The Netlify frontend already talks to the Render backend by default. The chatbot model is now hosted on **Hugging Face Hub** — no large model files need to be included in the repo or copied to the server.
 
 1. **Frontend (Netlify)**  
    - The app uses `https://agrifinconnectrwanda.onrender.com/api` in production (see `frontend/src/api/client.js`).  
@@ -32,18 +34,24 @@ The Netlify frontend already talks to the Render backend by default. To make sur
 2. **Backend (Render)**  
    - **CORS:** So the browser allows requests from your Netlify site, set on Render:  
      **Key:** `CORS_ALLOWED_ORIGINS`  
-     **Value:** your Netlify URL, e.g. `https://agrifinconnectrwanda.netlify.app`  
+     **Value:** `https://agrifinconnectrwanda.netlify.app`  
      (If you use a custom domain, add that too, comma-separated.)  
-   - **Chatbot model:** The `/api/chat/` endpoint needs the T5 model. On Render, either:  
-     - Include `AI_Chatbot_model/` in your repo (or a build step that downloads/copies it into the project root), or  
-     - Set `CHATBOT_MODEL_DIR` to a path where the model is available on the server.  
-   - If the model is missing, the API still responds but returns a “chatbot model is not available” message.
+   - **Chatbot model (Hugging Face Hub):** Set the following environment variable on Render so the backend pulls the model from the Hub at startup:  
+     **Key:** `CHATBOT_MODEL_HF_REPO`  
+     **Value:** `Annemarie535257/agrifinconnect-chatbot`  
+     The backend (`api/chatbot_service.py`) automatically loads from the Hub when the local `AI_Chatbot_model/` directory is not present and `CHATBOT_MODEL_HF_REPO` is set.  
+   - If neither the local directory nor `CHATBOT_MODEL_HF_REPO` is set, the API still responds but returns a "chatbot model is not available" fallback message.
 
-3. **Chatbot "TensorFlow not found" on Render:** If Swagger shows that error, run locally `python backend/export_chatbot_to_pytorch.py` to export the model to PyTorch, then redeploy; or ensure `backend/runtime.txt` is Python 3.11.
+3. **Pushing a new version of the chatbot model to Hugging Face:**  
+   ```bash
+   # From the project root, with huggingface_hub installed and HF_TOKEN set
+   python backend/push_chatbot_to_huggingface.py Annemarie535257/agrifinconnect-chatbot
+   ```
+   This uploads all files in `AI_Chatbot_model/` (PyTorch weights only — `tf_model.h5` is excluded).
 
 4. **Check**  
-   - Open your Netlify app → floating chatbot or “Try Models” chatbot card → send a message.  
-   - CORS/network issues usually show as “API error” or failed network; model issues show as the backend’s “model not available” text.
+   - Open your Netlify app → floating chatbot or "Try Models" chatbot card → send a message.  
+   - CORS/network issues show as "API error" in the browser console; model issues show as the backend's "model not available" text.
 
 ```bash
 git clone https://github.com/Annemarie535257/AgriFinConnectRwanda.git
@@ -110,7 +118,8 @@ The platform helps farmers explore loan eligibility and recommended amounts, all
   - Explains the reasoning in plain language
 
 - **Chatbot**
-  - Uses a fine‑tuned **Flan‑T5** model served from `AI_Chatbot_model/` (or the directory configured via `CHATBOT_MODEL_DIR`)
+  - Uses a fine‑tuned **Flan‑T5** model hosted on [Hugging Face Hub](https://huggingface.co/Annemarie535257/agrifinconnect-chatbot)
+  - Loaded from the Hub on Render (set `CHATBOT_MODEL_HF_REPO=Annemarie535257/agrifinconnect-chatbot`); falls back to a local `AI_Chatbot_model/` directory if present
   - Answers questions about loans, applications, repayment, etc.
   - Accepts a `language` field (`en`, `fr`, `rw`) and uses MarianMT models to translate
     questions/answers between English, French, and Kinyarwanda
@@ -193,7 +202,9 @@ AgriFinConnect-Rwanda/
 │   ├── risk_score_regressor.pkl
 │   └── loan_amount_regressor.pkl
 │
-├── AI_Chatbot_model/               # (optional) Flan‑T5 chatbot model + tokenizer for /api/chat/
+├── AI_Chatbot_model/               # (optional) local Flan‑T5 chatbot model + tokenizer for /api/chat/
+│                                   # Production model is hosted on Hugging Face Hub:
+│                                   # https://huggingface.co/Annemarie535257/agrifinconnect-chatbot
 ├── requirements.txt                # Root DS requirements (for notebooks, optional)
 └── README.md
 ```
