@@ -1,26 +1,97 @@
 /**
  * Netlify serverless function: POST /.netlify/functions/chat
  *
- * Architecture:
- *  - Main chatbot  → HF Gradio Space (free, public, no token required)
- *    https://huggingface.co/spaces/Annemarie535257/agrifinconnect-chatbot-api
- *  - Translation   → HF Inference router (Helsinki-NLP MarianMT models)
- *    Requires HF_API_TOKEN env var in Netlify.
+ * Proxies chat requests to the Render Django backend (/api/chat/).
+ * This solves the original timeout: the browser→Render direct call was hitting
+ * Render's 30 s free-tier limit during cold starts. The Netlify function gets
+ * 26 s and handles the cold-start gracefully by returning a "please retry" msg.
  *
- * Why Gradio Space instead of HF Serverless Inference API:
- *  The Serverless Inference API only hosts popular models. Custom fine-tuned
- *  models (like this one) get "No Inference Provider available" errors.
- *  A Gradio Space hosts ANY model for free and exposes a stable HTTP API.
- *
- * Cold-start: The Space sleeps after inactivity. On cold start the /api/predict
- * call takes ~30-60 s to load the model. We time out after 22 s and return a
- * "warming up — please retry" message. Once warm, responses take 1-3 s.
- *
- * Optional Netlify env vars:
- *   HF_API_TOKEN          — for translation (fallback: send untranslated)
- *   CHATBOT_HF_SPACE      — Space repo (default: Annemarie535257/agrifinconnect-chatbot-api)
- *   CHATBOT_INPUT_PREFIX  — prompt prefix (default: "answer the question: ")
+ * When Render is already warm the round-trip is 1–5 s and works perfectly.
  */
+
+const RENDER_API = (process.env.VITE_API_URL || 'https://agrifinconnectrwanda.onrender.com/api').replace(/\/$/, '');
+
+const WARMING_MESSAGES = {
+  en: 'The server is waking up (Render free tier sleeps after inactivity). Please send your message again in about 30 seconds.',
+  fr: "Le serveur se réveille (le plan gratuit Render s'endort après inactivité). Veuillez renvoyer votre message dans environ 30 secondes.",
+  rw: "Seriveri irakanguka (Render ya mahoro isinzira). Nyamuneka, ohereza ubutumwa bwawe vuba mu masegonda 30.",
+};
+
+exports.handler = async (event) => {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+  }
+
+  let message = '';
+  let language = 'en';
+  try {
+    const payload = JSON.parse(event.body || '{}');
+    message = (payload.message || '').trim();
+    language = (payload.language || 'en').trim().toLowerCase();
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON' }) };
+  }
+
+  if (!message) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'message is required' }) };
+  }
+
+  const supportedLanguages = ['en', 'fr', 'rw'];
+  if (!supportedLanguages.includes(language)) language = 'en';
+
+  const controller = new AbortController();
+  // 24 s — leaves 2 s margin before Netlify's 26 s hard limit
+  const timeoutId = setTimeout(() => controller.abort(), 24000);
+
+  try {
+    const res = await fetch(`${RENDER_API}/chat/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, language }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    // Render cold-start returns 502/503/504 — tell user to retry
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reply: WARMING_MESSAGES[language] || WARMING_MESSAGES.en,
+          warming_up: true,
+        }),
+      };
+    }
+
+    const data = await res.json();
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    // AbortError = our 24 s timeout fired — Render is still waking up
+    if (err.name === 'AbortError') {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reply: WARMING_MESSAGES[language] || WARMING_MESSAGES.en,
+          warming_up: true,
+        }),
+      };
+    }
+    console.error('Chat proxy error:', err.message);
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reply: `[Chatbot error] ${err.message}` }),
+    };
+  }
+};
+
 
 const CHATBOT_REPO =
   process.env.CHATBOT_HF_REPO || 'Annemarie535257/agrifinconnect-chatbot';
