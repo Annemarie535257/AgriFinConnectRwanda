@@ -19,13 +19,14 @@ pandas>=2.0
 numpy>=1.24
 scikit-learn>=1.3
 
-# Chatbot & translation (backend uses PyTorch first; TF needed for export_chatbot_to_pytorch.py)
-# Use Python 3.9–3.12 for this venv so tensorflow and torch install (e.g. py -3.11 -m venv venv_export).
+# Chatbot & translation (PyTorch + transformers used on Render; TF only needed for
+# the local export_chatbot_to_pytorch.py script — see requirements-export.txt).
+# On Render, set CHATBOT_DISABLED=1 env var if the instance runs out of memory.
 transformers>=4.30,<5.0
-tensorflow>=2.13; python_version >= "3.9" and python_version < "3.13"
-tf-keras>=2.17.0; python_version >= "3.9" and python_version < "3.13"
 sentencepiece>=0.1.99
 huggingface-hub>=0.20
+# tensorflow and tf-keras are intentionally omitted here — they are only needed for
+# the local export script. Use requirements-export.txt for that instead.
 torch>=2.2; python_version >= "3.9" and python_version < "3.13"
 
 # Server & DB

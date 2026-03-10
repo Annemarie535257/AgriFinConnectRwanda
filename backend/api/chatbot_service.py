@@ -8,13 +8,20 @@ loads from Hugging Face Hub if CHATBOT_MODEL_HF_REPO is set (e.g. Annemarie53525
 Uses PyTorch (T5ForConditionalGeneration) when possible so the chatbot works on Render without
 TensorFlow. Falls back to TensorFlow (TFT5ForConditionalGeneration) if PyTorch load fails
 and TensorFlow is available (e.g. local TF-only saved model).
+
+Set CHATBOT_DISABLED=1 environment variable to skip model loading entirely (e.g. on memory-
+constrained hosts like Render free tier). The chat endpoint will return a static fallback reply.
 """
 import logging
+import os
 from pathlib import Path
 
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+# When CHATBOT_DISABLED=1 (or truthy) is set, skip all model loading to avoid OOM on Render.
+CHATBOT_DISABLED = os.environ.get('CHATBOT_DISABLED', '').strip() in ('1', 'true', 'yes')
 
 # Saved model dir: project root / saved-model (same as notebook output). Resolved to absolute path.
 _project_root = getattr(settings, 'PROJECT_ROOT', None) or Path(__file__).resolve().parent.parent.parent
@@ -48,6 +55,9 @@ def _load_chatbot():
     Uses local CHATBOT_MODEL_DIR if it exists; otherwise loads from Hugging Face Hub if CHATBOT_MODEL_HF_REPO is set.
     """
     global _tokenizer, _model, _use_torch, _load_error
+    if CHATBOT_DISABLED:
+        logger.info("Chatbot model loading skipped (CHATBOT_DISABLED=1)")
+        return False
     if _model is not None and _tokenizer is not None:
         return True
     if _load_error is not None:
