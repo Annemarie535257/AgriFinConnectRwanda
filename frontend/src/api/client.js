@@ -70,9 +70,21 @@ export async function recommendLoanAmount(payload, language = 'en') {
   return request('/recommend-amount/', { method: 'POST', body });
 }
 
-/** POST /api/chat — chatbot (multilingual) */
+/** POST /.netlify/functions/chat — chatbot via HF Inference API (bypasses Render timeout) */
 export async function chat(message, language = 'en') {
-  return request('/chat/', { method: 'POST', body: { message, language } });
+  // Route directly to the Netlify serverless function which calls HF Inference API.
+  // This avoids Render's 30 s free-tier timeout that fires before the model responds.
+  const url = '/.netlify/functions/chat';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, language }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Chat function error ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.json();
 }
 
 /** POST /api/auth/register — register farmer or microfinance */
