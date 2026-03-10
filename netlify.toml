@@ -9,9 +9,8 @@
 [build.environment]
   GIT_LFS_ENABLED = "false"
 
-# Serverless functions directory — path is relative to the REPO ROOT.
-# Putting the chat function here (netlify/functions/) is Netlify's default location
-# and is always discovered correctly regardless of the `base` directory above.
+# With base = "frontend", all paths are relative to the frontend/ directory.
+# So this resolves to frontend/netlify/functions/ — where chat.js now lives.
 [functions]
   directory = "netlify/functions"
 
@@ -20,5 +19,3 @@
   from   = "/*"
   to     = "/index.html"
   status = 200
-
-# Env: set VITE_API_URL in Netlify UI to your Render API URL, e.g. https://your-app.onrender.com/api
