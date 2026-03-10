@@ -4,7 +4,7 @@ language:
   - fr
   - rw
 license: apache-2.0
-pipeline_tag: text2text-generation
+pipeline_tag: text-generation
 tags:
   - t5
   - flan-t5
