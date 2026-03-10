@@ -1,24 +1,39 @@
 /**
  * Netlify serverless function: POST /.netlify/functions/chat
- * Uses the official @huggingface/inference SDK — handles routing automatically.
  *
- * IMPORTANT: The HF model repo must be PUBLIC.
- *   → huggingface.co/Annemarie535257/agrifinconnect-chatbot
- *     → Settings → Change visibility → Public
+ * Architecture:
+ *  - Main chatbot  → HF Gradio Space (free, public, no token required)
+ *    https://huggingface.co/spaces/Annemarie535257/agrifinconnect-chatbot-api
+ *  - Translation   → HF Inference router (Helsinki-NLP MarianMT models)
+ *    Requires HF_API_TOKEN env var in Netlify.
  *
- * Required Netlify env var:
- *   HF_API_TOKEN  — Hugging Face token (read access is enough)
+ * Why Gradio Space instead of HF Serverless Inference API:
+ *  The Serverless Inference API only hosts popular models. Custom fine-tuned
+ *  models (like this one) get "No Inference Provider available" errors.
+ *  A Gradio Space hosts ANY model for free and exposes a stable HTTP API.
  *
- * Cold-start: HF loads the model on first request (~20-60 s for 300 MB model).
- * We detect this immediately and return a "please retry" message.
+ * Cold-start: The Space sleeps after inactivity. On cold start the /api/predict
+ * call takes ~30-60 s to load the model. We time out after 22 s and return a
+ * "warming up — please retry" message. Once warm, responses take 1-3 s.
+ *
+ * Optional Netlify env vars:
+ *   HF_API_TOKEN          — for translation (fallback: send untranslated)
+ *   CHATBOT_HF_SPACE      — Space repo (default: Annemarie535257/agrifinconnect-chatbot-api)
+ *   CHATBOT_INPUT_PREFIX  — prompt prefix (default: "answer the question: ")
  */
-import { InferenceClient } from '@huggingface/inference';
 
 const CHATBOT_REPO =
   process.env.CHATBOT_HF_REPO || 'Annemarie535257/agrifinconnect-chatbot';
 const INPUT_PREFIX =
+const SPACE_REPO =
+  process.env.CHATBOT_HF_SPACE || 'Annemarie535257/agrifinconnect-chatbot-api';
+const INPUT_PREFIX =
   process.env.CHATBOT_INPUT_PREFIX || 'answer the question: ';
-const MAX_NEW_TOKENS = parseInt(process.env.CHATBOT_MAX_NEW_TOKENS || '128', 10);
+
+// Derive Gradio Space URL from repo name (e.g. User/my-space → user-my-space.hf.space)
+const SPACE_BASE_URL = `https://${SPACE_REPO.replace('/', '-').toLowerCase()}.hf.space`;
+
+const HF_ROUTER = 'https://router.huggingface.co/hf-inference/models';
 
 const TRANSLATION_MODELS = {
   fr_en: 'Helsinki-NLP/opus-mt-fr-en',
@@ -33,55 +48,67 @@ const WARMING_MESSAGES = {
   rw: "Modèle ya AI iri gutegurwa (nk'amasegonda 30 ubwa mbere). Nyamuneka, ohereza ubutumwa bwawe vuba.",
 };
 
-function isLoadingError(err) {
-  const msg = err?.message || '';
-  return (
-    msg.includes('loading') ||
-    msg.includes('503') ||
-    msg.includes('currently loading') ||
-    msg.includes('estimated_time')
-  );
-}
-
-async function runChatbot(client, englishMessage) {
-  const output = await client.textGeneration({
-    model: CHATBOT_REPO,
-    inputs: `${INPUT_PREFIX}${englishMessage}`,
-    parameters: { max_new_tokens: MAX_NEW_TOKENS },
-  });
-  return output.generated_text;
-}
-
-async function runTranslation(client, text, modelId) {
+/** Call the Gradio Space /api/predict endpoint. Times out after 22 s. */
+async function callGradioSpace(message) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 22000);
   try {
-    const output = await client.translation({
-      model: modelId,
-      inputs: text,
+    const res = await fetch(`${SPACE_BASE_URL}/api/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [`${INPUT_PREFIX}${message}`], fn_index: 0 }),
+      signal: controller.signal,
     });
-    // SDK returns { translation_text } or [{ translation_text }]
-    if (Array.isArray(output)) return output[0]?.translation_text || text;
-    return output?.translation_text || text;
-  } catch {
-    return text; // graceful degradation — use original on translation failure
+    clearTimeout(timeoutId);
+    if (res.status === 503 || res.status === 504 || res.status === 502) {
+      return { loading: true };
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Space API ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    // Gradio returns { data: ["reply text"] }
+    if (Array.isArray(json.data) && json.data.length > 0) {
+      return { text: String(json.data[0]) };
+    }
+    throw new Error(`Unexpected Space response: ${JSON.stringify(json).slice(0, 200)}`);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') return { loading: true };
+    throw err;
   }
 }
 
-export const handler = async (event) => {
+/** Translate text via HF Inference router (Helsinki-NLP MarianMT). Falls back to original. */
+async function translate(text, modelId, token) {
+  if (!text || !token) return text;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${HF_ROUTER}/${modelId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ inputs: text }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return text;
+    const json = await res.json();
+    if (Array.isArray(json) && json[0]?.translation_text) return json[0].translation_text;
+    return text;
+  } catch {
+    clearTimeout(timeoutId);
+    return text; // graceful degradation
+  }
+}
+
+exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
-
-  // ── Token check ──────────────────────────────────────────────────────────
-  const token = process.env.HF_API_TOKEN;
-  if (!token) {
-    const msg =
-      '[Setup error] HF_API_TOKEN is not set. ' +
-      'Netlify → Site configuration → Environment variables → Add HF_API_TOKEN → Redeploy.';
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply: msg }),
-    };
   }
 
   // ── Parse body ───────────────────────────────────────────────────────────
@@ -102,42 +129,38 @@ export const handler = async (event) => {
   const supportedLanguages = ['en', 'fr', 'rw'];
   if (!supportedLanguages.includes(language)) language = 'en';
 
-  const client = new InferenceClient(token);
+  // HF_API_TOKEN is optional — only needed for translation
+  const token = process.env.HF_API_TOKEN || '';
 
   // ── Inference ─────────────────────────────────────────────────────────────
   try {
     // 1. Translate question to English for FR/RW
     let englishMessage = message;
     if (language === 'fr') {
-      englishMessage = await runTranslation(client, message, TRANSLATION_MODELS.fr_en);
+      englishMessage = await translate(message, TRANSLATION_MODELS.fr_en, token);
     } else if (language === 'rw') {
-      englishMessage = await runTranslation(client, message, TRANSLATION_MODELS.rw_en);
+      englishMessage = await translate(message, TRANSLATION_MODELS.rw_en, token);
     }
 
-    // 2. Run chatbot model
-    let englishReply;
-    try {
-      englishReply = await runChatbot(client, englishMessage);
-    } catch (err) {
-      if (isLoadingError(err)) {
-        return {
-          statusCode: 200,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            reply: WARMING_MESSAGES[language] || WARMING_MESSAGES.en,
-            warming_up: true,
-          }),
-        };
-      }
-      throw err;
+    // 2. Run chatbot via Gradio Space
+    const result = await callGradioSpace(englishMessage);
+    if (result.loading) {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reply: WARMING_MESSAGES[language] || WARMING_MESSAGES.en,
+          warming_up: true,
+        }),
+      };
     }
 
     // 3. Translate reply back
-    let reply = englishReply;
+    let reply = result.text;
     if (language === 'fr') {
-      reply = await runTranslation(client, englishReply, TRANSLATION_MODELS.en_fr);
+      reply = await translate(result.text, TRANSLATION_MODELS.en_fr, token);
     } else if (language === 'rw') {
-      reply = await runTranslation(client, englishReply, TRANSLATION_MODELS.en_rw);
+      reply = await translate(result.text, TRANSLATION_MODELS.en_rw, token);
     }
 
     return {
@@ -154,3 +177,4 @@ export const handler = async (event) => {
     };
   }
 };
+

@@ -14,6 +14,11 @@
 [functions]
   directory = "netlify/functions"
 
+# Give the chat function the maximum allowed timeout (26 s on free tier)
+# so it has time to get a response from the Gradio Space even if slightly warm.
+[functions."chat"]
+  timeout = 26
+
 # SPA: serve index.html for client-side routes
 [[redirects]]
   from   = "/*"
