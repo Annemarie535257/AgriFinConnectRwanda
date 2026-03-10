@@ -1,19 +1,24 @@
 # Netlify build for AgriFinConnect Rwanda frontend (monorepo: frontend is in /frontend)
 [build]
-  base      = "frontend"
-  command   = "npm ci && npm run build"
-  publish   = "dist"
-  functions = "netlify/functions"
+  base    = "frontend"
+  command = "npm ci && npm run build"
+  publish = "dist"
 
 # Skip Git LFS downloads — the frontend build does not need the large model files
 # (AI_Chatbot_model/model.safetensors etc.). The chatbot calls HF Inference API directly.
 [build.environment]
   GIT_LFS_ENABLED = "false"
 
+# Serverless functions directory — path is relative to the REPO ROOT.
+# Putting the chat function here (netlify/functions/) is Netlify's default location
+# and is always discovered correctly regardless of the `base` directory above.
+[functions]
+  directory = "netlify/functions"
+
 # SPA: serve index.html for client-side routes
 [[redirects]]
-  from    = "/*"
-  to      = "/index.html"
-  status  = 200
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
 
 # Env: set VITE_API_URL in Netlify UI to your Render API URL, e.g. https://your-app.onrender.com/api
