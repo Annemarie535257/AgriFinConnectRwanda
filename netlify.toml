@@ -5,6 +5,11 @@
   publish   = "dist"
   functions = "netlify/functions"
 
+# Skip Git LFS downloads — the frontend build does not need the large model files
+# (AI_Chatbot_model/model.safetensors etc.). The chatbot calls HF Inference API directly.
+[build.environment]
+  GIT_LFS_ENABLED = "false"
+
 # SPA: serve index.html for client-side routes
 [[redirects]]
   from    = "/*"
