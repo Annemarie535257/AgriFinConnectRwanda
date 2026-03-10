@@ -28,7 +28,7 @@ const INPUT_PREFIX =
   process.env.CHATBOT_INPUT_PREFIX || 'answer the question: ';
 const MAX_NEW_TOKENS = parseInt(process.env.CHATBOT_MAX_NEW_TOKENS || '128', 10);
 
-const HF_INFERENCE_BASE = 'https://api-inference.huggingface.co/models';
+const HF_INFERENCE_BASE = 'https://router.huggingface.co/hf-inference/models';
 
 const TRANSLATION_MODELS = {
   fr_en: 'Helsinki-NLP/opus-mt-fr-en',
