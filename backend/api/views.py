@@ -143,6 +143,68 @@ def recommend_amount(request):
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+# ── Fraud detection schema helpers ────────────────────────────────────────────
+_fraud_request = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['TransactionAmount', 'AccountBalance', 'LoginAttempts'],
+    properties={
+        'TransactionAmount': openapi.Schema(type=openapi.TYPE_NUMBER, description='Amount of the transaction'),
+        'TransactionDuration': openapi.Schema(type=openapi.TYPE_INTEGER, description='Duration in seconds'),
+        'LoginAttempts': openapi.Schema(type=openapi.TYPE_INTEGER, description='Number of login attempts before transaction'),
+        'AccountBalance': openapi.Schema(type=openapi.TYPE_NUMBER, description='Account balance after transaction'),
+        'CustomerAge': openapi.Schema(type=openapi.TYPE_INTEGER, description='Customer age'),
+        'DaysSinceLastTx': openapi.Schema(type=openapi.TYPE_NUMBER, description='Days elapsed since previous transaction (velocity indicator)'),
+        'AmountToBalanceRatio': openapi.Schema(type=openapi.TYPE_NUMBER, description='TransactionAmount / AccountBalance (auto-computed if omitted)'),
+        'TxHour': openapi.Schema(type=openapi.TYPE_INTEGER, description='Hour of transaction 0-23 (derived from TransactionDate if omitted)'),
+        'IsNightTx': openapi.Schema(type=openapi.TYPE_INTEGER, description='1 if transaction occurred between 11pm-5am'),
+        'TransactionType': openapi.Schema(type=openapi.TYPE_STRING, enum=['Credit', 'Debit']),
+        'Channel': openapi.Schema(type=openapi.TYPE_STRING, enum=['Online', 'ATM', 'Branch']),
+        'CustomerOccupation': openapi.Schema(type=openapi.TYPE_STRING, enum=['Doctor', 'Engineer', 'Retired', 'Student']),
+        'TransactionDate': openapi.Schema(type=openapi.TYPE_STRING, description='ISO timestamp, used to derive TxHour if not supplied'),
+    },
+)
+_fraud_response = openapi.Response(
+    'Fraud detection result',
+    openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'is_fraud': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+            'fraud_probability': openapi.Schema(type=openapi.TYPE_NUMBER),
+            'anomaly_score': openapi.Schema(type=openapi.TYPE_NUMBER),
+            'risk_score': openapi.Schema(type=openapi.TYPE_NUMBER, description='0-100'),
+            'risk_level': openapi.Schema(type=openapi.TYPE_STRING, enum=['LOW', 'MEDIUM', 'HIGH']),
+        },
+    ),
+)
+
+
+@swagger_auto_schema(
+    method='post',
+    operation_description=(
+        'Fraud Detection: analyse a microfinance transaction for fraud risk. '
+        'Uses three models: Isolation Forest anomaly detector, Random Forest binary classifier, '
+        'and Gradient Boosting risk scorer (0-100). '
+        'Returns is_fraud (bool), fraud_probability (0-1), anomaly_score, risk_score (0-100), and risk_level (LOW/MEDIUM/HIGH).'
+    ),
+    request_body=_fraud_request,
+    responses={200: _fraud_response, 400: 'Error', 503: 'Models not loaded'},
+    tags=['Fraud Detection'],
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def fraud_detect(request):
+    """POST /api/fraud-detect/ — Analyse a transaction for fraud risk using 3 ML models."""
+    payload = _get_payload(request)
+    try:
+        from api.fraud_service import predict_fraud
+        result = predict_fraud(payload)
+        return Response(result)
+    except FileNotFoundError as e:
+        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 def _chat_fallback_payload(language: str, err_msg: str = None):
     """Shared fallback when chatbot model is unavailable or any error occurs."""
     replies = {

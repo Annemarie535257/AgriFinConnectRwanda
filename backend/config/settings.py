@@ -112,6 +112,9 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # ML models path (saved .pkl from notebook)
 MODELS_DIR = PROJECT_ROOT / 'loan_default_risk_model'
 
+# Fraud detection models
+FRAUD_MODELS_DIR = PROJECT_ROOT / 'fraud_detection_model'
+
 # Chatbot model: local directory (overrides default 'saved-model' in chatbot_service)
 CHATBOT_MODEL_DIR = PROJECT_ROOT / 'AI_Chatbot_model'
 # When local dir is missing (e.g. on Render), load from Hugging Face Hub. Set to '' to disable.

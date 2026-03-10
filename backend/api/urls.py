@@ -31,5 +31,6 @@ urlpatterns = [
     path('eligibility/', views.eligibility),
     path('risk/', views.risk),
     path('recommend-amount/', views.recommend_amount),
+    path('fraud-detect/', views.fraud_detect),
     path('chat/', views.chat),
 ]
