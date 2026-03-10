@@ -102,11 +102,12 @@ exports.handler = async (event) => {
 
   const token = process.env.HF_API_TOKEN;
   if (!token) {
-    console.error('HF_API_TOKEN env var is not set');
+    const msg = '[Config error] HF_API_TOKEN is not set in Netlify environment variables. Go to: Netlify site → Site configuration → Environment variables → add HF_API_TOKEN with your Hugging Face read token → redeploy.';
+    console.error(msg);
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply: FALLBACK.en, error: 'HF_API_TOKEN not configured' }),
+      body: JSON.stringify({ reply: msg }),
     };
   }
 
@@ -156,11 +157,11 @@ exports.handler = async (event) => {
     };
   } catch (err) {
     console.error('Chat function error:', err);
-    const fallbackReply = FALLBACK[language] || FALLBACK.en;
+    // Surface the real error in the reply so it's visible for debugging
     return {
-      statusCode: 200, // always 200 to match Django backend behaviour
+      statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply: fallbackReply }),
+      body: JSON.stringify({ reply: `[Chatbot error] ${err.message}` }),
     };
   }
 };
