@@ -70,6 +70,46 @@ export async function recommendLoanAmount(payload, language = 'en') {
   return request('/recommend-amount/', { method: 'POST', body });
 }
 
+/**
+ * POST /api/fraud-detect/ — analyse a microfinance transaction for fraud risk (Model 4).
+ * Required fields: TransactionAmount, AccountBalance, LoginAttempts, TransactionDuration,
+ *   CustomerAge, TransactionType ('Credit'|'Debit'), Channel ('Online'|'ATM'|'Branch'),
+ *   CustomerOccupation, TransactionDate (ISO string), PreviousTransactionDate (ISO string).
+ * Returns: { is_fraud, fraud_probability, anomaly_score, risk_score, risk_level }
+ */
+export async function detectFraud(payload) {
+  return request('/fraud-detect/', { method: 'POST', body: payload });
+}
+
+/**
+ * POST /api/fraud-detect/statement/ — upload a PDF bank statement and get
+ * fraud analysis for every extracted transaction.
+ * @param {File} pdfFile
+ * @param {{ customer_age?: number, occupation?: string }} opts
+ */
+export async function analyzeBankStatement(pdfFile, opts = {}) {
+  const formData = new FormData();
+  formData.append('file', pdfFile);
+  if (opts.customer_age) formData.append('customer_age', String(opts.customer_age));
+  if (opts.occupation)   formData.append('occupation', opts.occupation);
+  return request('/fraud-detect/statement/', { method: 'POST', body: formData });
+}
+
+/**
+ * POST /api/mfi/applications/<pk>/analyze-statement/
+ * Run fraud analysis on the proof_of_income PDF already submitted by the farmer.
+ * @param {number} appId
+ * @param {{ occupation?: string, customer_age?: number }} opts
+ */
+export async function analyzeApplicationStatement(appId, opts = {}) {
+  const token = localStorage.getItem('agrifinconnect-token');
+  return request(`/mfi/applications/${appId}/analyze-statement/`, {
+    method: 'POST',
+    body: opts,
+    headers: token ? { Authorization: `Token ${token}` } : {},
+  });
+}
+
 /** POST /.netlify/functions/chat — chatbot via HF Inference API (bypasses Render timeout) */
 export async function chat(message, language = 'en') {
   // Route directly to the Netlify serverless function which calls HF Inference API.
@@ -137,9 +177,10 @@ export async function logGetStartedActivity(eventType, role = '') {
 
 /** GET /api/admin/activity — list Get Started events (admin token required) */
 export async function getAdminActivity(token, limit = 100) {
+  const t = token || localStorage.getItem('agrifinconnect-token') || '';
   return request(`/admin/activity/?limit=${limit}`, {
     method: 'GET',
-    headers: { Authorization: `Token ${token}` },
+    headers: { Authorization: `Token ${t}` },
   });
 }
 
@@ -155,18 +196,49 @@ function authRequest(endpoint, options = {}) {
 
 /** GET /api/admin/users — list users (admin token) */
 export async function getAdminUsers(token, role = '', limit = 50) {
+  const t = token || localStorage.getItem('agrifinconnect-token') || '';
   const params = new URLSearchParams();
   if (role) params.set('role', role);
   params.set('limit', limit);
   return request(`/admin/users/?${params}`, {
-    headers: { Authorization: `Token ${token}` },
+    headers: { Authorization: `Token ${t}` },
   });
 }
 
 /** GET /api/admin/stats — dashboard stats (admin token) */
 export async function getAdminStats(token) {
+  const t = token || localStorage.getItem('agrifinconnect-token') || '';
   return request('/admin/stats/', {
-    headers: { Authorization: `Token ${token}` },
+    headers: { Authorization: `Token ${t}` },
+  });
+}
+
+/** GET /api/admin/applications — all loan applications (admin token) */
+export async function getAdminApplications(token, status = '', limit = 100) {
+  const t = token || localStorage.getItem('agrifinconnect-token') || '';
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  params.set('limit', limit);
+  return request(`/admin/applications/?${params}`, {
+    headers: { Authorization: `Token ${t}` },
+  });
+}
+
+/** GET /api/admin/applications/<id>/ — full application detail including documents */
+export async function getAdminApplicationDetail(id) {
+  const t = localStorage.getItem('agrifinconnect-token') || '';
+  return request(`/admin/applications/${id}/`, {
+    headers: { Authorization: `Token ${t}` },
+  });
+}
+
+/** PATCH /api/admin/applications/<id>/status/ — update application status */
+export async function updateAdminApplicationStatus(id, newStatus, rejectionReason = '') {
+  const t = localStorage.getItem('agrifinconnect-token') || '';
+  return request(`/admin/applications/${id}/status/`, {
+    method: 'PATCH',
+    headers: { Authorization: `Token ${t}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: newStatus, rejection_reason: rejectionReason }),
   });
 }
 

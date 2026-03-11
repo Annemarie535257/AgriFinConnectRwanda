@@ -116,6 +116,21 @@
   text-decoration: underline;
 }
 
+.get-started-page__admin-link {
+  display: block;
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.get-started-page__admin-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 /* Auth forms */
 .auth-forms__tabs {
   display: flex;

@@ -32,7 +32,7 @@ class RegisterSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
     """Login (all roles: farmer, microfinance, admin)."""
-    email = serializers.EmailField()
+    email = serializers.CharField()   # accepts both email addresses and plain usernames
     password = serializers.CharField(write_only=True)
 
 

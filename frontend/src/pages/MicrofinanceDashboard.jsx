@@ -10,6 +10,8 @@ import {
   downloadMfiApplicationPackage,
 } from '../api/client';
 import FloatingChatbot from '../components/FloatingChatbot';
+import FraudDetectionCard from '../components/FraudDetectionCard';
+import ApplicationStatementScanner from '../components/ApplicationStatementScanner';
 import DashboardTopBar from '../components/DashboardTopBar';
 import ApplicationTracker from '../components/ApplicationTracker';
 import './Dashboard.css';
@@ -26,7 +28,7 @@ export default function MicrofinanceDashboard() {
   const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');
-  const activeTab = (rawTab === 'applications' || rawTab === 'portfolio' || rawTab === 'communication' || rawTab === 'farmers') ? rawTab : 'applications';
+  const activeTab = (rawTab === 'applications' || rawTab === 'portfolio' || rawTab === 'communication' || rawTab === 'farmers' || rawTab === 'fraud') ? rawTab : 'applications';
   const [applications, setApplications] = useState([]);
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -68,7 +70,7 @@ export default function MicrofinanceDashboard() {
 
   useEffect(() => {
     setSelectedFarmerApp(null);
-    if (activeTab === 'applications' || activeTab === 'communication' || activeTab === 'farmers') fetchApplications();
+    if (activeTab === 'applications' || activeTab === 'communication' || activeTab === 'farmers' || activeTab === 'fraud') fetchApplications();
     else if (activeTab === 'portfolio') fetchPortfolio();
   }, [activeTab, statusFilter]);
 
@@ -597,6 +599,13 @@ export default function MicrofinanceDashboard() {
                 )}
               </div>
             )}
+          </section>
+        )}
+
+        {activeTab === 'fraud' && (
+          <section className="mfi-dashboard__section" aria-labelledby="mfi-fraud-heading">
+            <h2 id="mfi-fraud-heading" className="mfi-dashboard__section-title">{t('card5.title')}</h2>
+            <ApplicationStatementScanner applications={applications} />
           </section>
         )}
 

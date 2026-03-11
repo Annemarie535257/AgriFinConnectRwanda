@@ -12,6 +12,9 @@ urlpatterns = [
     path('admin/activity/', views.admin_activity_list),
     path('admin/users/', views.admin_users_list),
     path('admin/stats/', views.admin_stats),
+    path('admin/applications/', views.admin_applications_list),
+    path('admin/applications/<int:application_id>/', views.admin_application_detail),
+    path('admin/applications/<int:application_id>/status/', views.admin_update_application_status),
     # Farmer dashboard APIs
     path('farmer/profile/', views.farmer_profile),
     path('farmer/required-documents/', views.required_documents),
@@ -26,11 +29,13 @@ urlpatterns = [
     path('mfi/applications/<int:pk>/update-status/', views.mfi_update_application_status),
     path('mfi/applications/<int:pk>/review/', views.mfi_review_application),
     path('mfi/applications/<int:pk>/messages/', views.mfi_send_application_message),
+    path('mfi/applications/<int:pk>/analyze-statement/', views.analyze_application_statement),
     path('mfi/portfolio/', views.mfi_portfolio),
     # ML model APIs
     path('eligibility/', views.eligibility),
     path('risk/', views.risk),
     path('recommend-amount/', views.recommend_amount),
     path('fraud-detect/', views.fraud_detect),
+    path('fraud-detect/statement/', views.analyze_bank_statement),
     path('chat/', views.chat),
 ]

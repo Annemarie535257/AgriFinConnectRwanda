@@ -130,6 +130,9 @@ export default function GetStartedPage() {
           <Link to="/" className="get-started-page__back">
             {t('getStarted.backToHome')}
           </Link>
+          <Link to="/admin-login" className="get-started-page__admin-link">
+            System Admin
+          </Link>
         </div>
       </main>
       <FloatingChatbot />

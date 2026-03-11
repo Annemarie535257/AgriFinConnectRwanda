@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import GetStartedPage from './pages/GetStartedPage'
+import AdminLoginPage from './pages/AdminLoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import TryModelsPage from './pages/TryModelsPage'
@@ -31,6 +32,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/get-started" element={<GetStartedPage />} />
+      <Route path="/admin-login" element={<AdminLoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/try-models" element={<TryModelsPage />} />

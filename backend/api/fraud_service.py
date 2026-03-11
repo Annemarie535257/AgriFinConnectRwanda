@@ -1,9 +1,8 @@
 """
 Fraud detection service for microfinance transactions.
-Loads three models from fraud_detection_model/:
-  - Isolation Forest anomaly scorer (unsupervised baseline)
-  - Random Forest binary fraud classifier
-  - Gradient Boosting fraud risk scorer (0-100)
+Loads models from fraud_detection_model/:
+  - fraud_best_gradient_boosting.pkl  — primary model (GBR risk score 0-100)
+  - fraud_isolation_forest.pkl        — anomaly scorer (unsupervised baseline)
 
 Usage:
     from api.fraud_service import predict_fraud
@@ -50,11 +49,11 @@ def _load_artifacts():
     if not FRAUD_MODELS_DIR.exists():
         raise FileNotFoundError(f"Fraud model directory not found: {FRAUD_MODELS_DIR}")
     _artifacts["feature_cols"] = joblib.load(FRAUD_MODELS_DIR / "fraud_feature_columns.pkl")
-    _artifacts["scaler"] = joblib.load(FRAUD_MODELS_DIR / "fraud_scaler.pkl")
-    _artifacts["encoders"] = joblib.load(FRAUD_MODELS_DIR / "fraud_encoders.pkl")
-    _artifacts["iso"] = joblib.load(FRAUD_MODELS_DIR / "fraud_isolation_forest.pkl")
-    _artifacts["classifier"] = joblib.load(FRAUD_MODELS_DIR / "fraud_classifier.pkl")
-    _artifacts["risk_scorer"] = joblib.load(FRAUD_MODELS_DIR / "fraud_risk_scorer.pkl")
+    _artifacts["scaler"]       = joblib.load(FRAUD_MODELS_DIR / "fraud_scaler.pkl")
+    _artifacts["encoders"]     = joblib.load(FRAUD_MODELS_DIR / "fraud_encoders.pkl")
+    _artifacts["iso"]          = joblib.load(FRAUD_MODELS_DIR / "fraud_isolation_forest.pkl")
+    # Primary model: best Gradient Boosting regressor (risk score 0-100)
+    _artifacts["best_model"]   = joblib.load(FRAUD_MODELS_DIR / "fraud_best_gradient_boosting.pkl")
     logger.info("Fraud detection models loaded from %s", FRAUD_MODELS_DIR)
 
 
@@ -148,17 +147,15 @@ def predict_fraud(payload: dict) -> dict:
     vec = _payload_to_vector(payload)
     vec_s = _artifacts["scaler"].transform(vec)
 
-    # Model 1: Isolation Forest (anomaly score, normalised 0-1)
-    raw_score = float(_artifacts["iso"].score_samples(vec_s)[0])  # negative
-    # Clip to reasonable range before returning
+    # Primary model: Gradient Boosting risk score (0-100)
+    risk_score = float(np.clip(_artifacts["best_model"].predict(vec_s)[0], 0, 100))
+    # Derive binary fraud flag and probability from the risk score
+    is_fraud   = risk_score >= 50
+    fraud_prob = round(risk_score / 100.0, 4)
+
+    # Supplementary: Isolation Forest anomaly score
+    raw_score     = float(_artifacts["iso"].score_samples(vec_s)[0])  # negative
     anomaly_score = round(float(-raw_score), 4)
-
-    # Model 2: Random Forest binary classifier
-    is_fraud = bool(_artifacts["classifier"].predict(vec_s)[0])
-    fraud_prob = float(_artifacts["classifier"].predict_proba(vec_s)[0][1])
-
-    # Model 3: Gradient Boosting risk score
-    risk_score = float(np.clip(_artifacts["risk_scorer"].predict(vec_s)[0], 0, 100))
 
     risk_level = "HIGH" if risk_score >= 50 else ("MEDIUM" if risk_score >= 20 else "LOW")
 

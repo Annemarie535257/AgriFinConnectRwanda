@@ -1,0 +1,119 @@
+/* ApplicationStatementScanner.css */
+
+.ass-wrap { display: flex; flex-direction: column; gap: 0; }
+
+.ass-header { margin-bottom: 1rem; }
+.ass-header__desc { font-size: 0.875rem; color: #64748b; margin: 0; line-height: 1.5; }
+
+.ass-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2rem;
+  font-size: 0.875rem;
+}
+
+/* Application rows */
+.ass-list { display: flex; flex-direction: column; gap: 1rem; }
+
+.ass-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+.ass-card--fraud { border-color: #ef4444; background: #fff5f5; }
+.ass-card--clean { border-color: #22c55e; background: #f0fdf4; }
+
+.ass-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.ass-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+.ass-card__name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1e293b;
+}
+.ass-card__meta {
+  font-size: 0.78rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.ass-card__doc {
+  font-size: 0.78rem;
+  color: #475569;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.ass-card__btn {
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-primary, #16a34a);
+  background: var(--color-primary, #16a34a);
+  color: #fff;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.ass-card__btn:hover  { opacity: 0.88; }
+.ass-card__btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ass-card__btn--loading { opacity: 0.7; }
+
+/* Result area */
+.ass-result { margin-top: 0.85rem; }
+
+.ass-result__summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+}
+.ass-result__detail { margin-top: 0.5rem; }
+.ass-result__detail > summary { list-style: none; }
+.ass-result__detail > summary::-webkit-details-marker { display: none; }
+
+.ass-result__pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+.ass-result__pill--warn   { background: #fef3c7; color: #92400e; }
+.ass-result__pill--danger { background: #fee2e2; color: #991b1b; }
+
+/* Missing applications */
+.ass-missing {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+.ass-missing summary { cursor: pointer; font-weight: 600; }
+.ass-missing__list { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+.ass-missing__item { margin-bottom: 0.25rem; }

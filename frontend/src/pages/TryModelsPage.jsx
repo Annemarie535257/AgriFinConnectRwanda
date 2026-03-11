@@ -2,6 +2,7 @@ import Header from '../components/Header';
 import LoanEligibilityCard from '../components/LoanEligibilityCard';
 import RiskAssessmentCard from '../components/RiskAssessmentCard';
 import LoanRecommendationCard from '../components/LoanRecommendationCard';
+import FraudDetectionCard from '../components/FraudDetectionCard';
 import ChatbotCard from '../components/ChatbotCard';
 import Footer from '../components/Footer';
 import BackToTop from '../components/BackToTop';
@@ -23,6 +24,7 @@ export default function TryModelsPage() {
           <LoanEligibilityCard />
           <RiskAssessmentCard />
           <LoanRecommendationCard />
+          <FraudDetectionCard />
           <ChatbotCard />
         </div>
       </main>

@@ -1,0 +1,233 @@
+/* BankStatementAnalyzer.css */
+
+/* ── Statement-level verdict banner ── */
+.bsa-verdict {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  border: 2px solid;
+}
+.bsa-verdict--fraud {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+.bsa-verdict--clean {
+  background: #f0fdf4;
+  border-color: #22c55e;
+  color: #166534;
+}
+.bsa-verdict__icon {
+  font-size: 2.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.bsa-verdict__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.bsa-verdict__label {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.bsa-verdict__sub {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+.bsa-verdict__score {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  text-align: right;
+}
+.bsa-verdict__score small { font-size: 0.75rem; font-weight: 500; }
+
+/* Worst transaction callout */
+.bsa-worst {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+}
+.bsa-worst__title { font-weight: 700; color: #92400e; }
+.bsa-worst__date  { color: #78350f; }
+.bsa-worst__desc  { flex: 1; min-width: 120px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bsa-worst__amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+.bsa-worst__score  { font-weight: 700; }
+
+.bsa-wrap {
+  margin-top: 1.5rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: var(--color-surface, #fff);
+}
+
+.bsa-header { margin-bottom: 1rem; }
+.bsa-title  { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.25rem; }
+.bsa-desc   { font-size: 0.875rem; color: var(--color-text-muted, #64748b); margin: 0; }
+
+/* Drop zone */
+.bsa-file-label  { grid-column: 1 / -1; }
+.bsa-drop-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  border: 2px dashed var(--color-border, #cbd5e1);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #64748b);
+  transition: border-color 0.2s, background 0.2s;
+  padding: 0.75rem 1rem;
+  margin-top: 0.25rem;
+}
+.bsa-drop-zone:hover,
+.bsa-drop-zone:focus { border-color: var(--color-primary, #16a34a); outline: none; }
+.bsa-drop-zone--has-file {
+  border-style: solid;
+  border-color: var(--color-primary, #16a34a);
+  background: #f0fdf4;
+  color: var(--color-primary, #16a34a);
+  font-weight: 600;
+}
+.bsa-drop-zone__filename { word-break: break-all; text-align: center; }
+
+/* Summary stats */
+.bsa-results   { margin-top: 1.5rem; }
+.bsa-summary   { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.bsa-stat      { flex: 1; min-width: 100px; background: #f8fafc; border-radius: 10px; padding: 0.75rem 1rem; text-align: center; border: 1px solid #e2e8f0; }
+.bsa-stat--warn   { border-color: #fde68a; background: #fffbeb; }
+.bsa-stat--danger { border-color: #fecaca; background: #fef2f2; }
+.bsa-stat__value  { display: block; font-size: 1.75rem; font-weight: 800; line-height: 1; }
+.bsa-stat__label  { display: block; font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
+
+/* Warnings */
+.bsa-warnings {
+  font-size: 0.8rem;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+.bsa-warnings summary { cursor: pointer; font-weight: 600; }
+.bsa-warnings ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+
+/* Empty state */
+.bsa-empty { color: #94a3b8; font-size: 0.875rem; text-align: center; padding: 1rem 0; }
+
+/* Filter buttons */
+.bsa-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+.bsa-filter__btn {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.bsa-filter__btn:hover { background: #e2e8f0; }
+.bsa-filter__btn--active { background: var(--color-primary, #16a34a); color: #fff; border-color: var(--color-primary, #16a34a); }
+.bsa-filter__count {
+  background: rgba(0,0,0,0.12);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Table */
+.bsa-table-wrap { overflow-x: auto; }
+.bsa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.bsa-table th,
+.bsa-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+.bsa-table thead th {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #475569;
+  text-align: left;
+  position: sticky;
+  top: 0;
+}
+.bsa-row--flagged { background: #fff5f5; }
+.bsa-td--desc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bsa-td--num  { text-align: right; font-variant-numeric: tabular-nums; }
+.bsa-td--date { white-space: nowrap; }
+
+/* Type badge */
+.bsa-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.bsa-badge--credit { background: #dcfce7; color: #16a34a; }
+.bsa-badge--debit  { background: #fee2e2; color: #dc2626; }
+
+/* Risk tag */
+.bsa-risk-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+}
+
+/* Mini progress bar */
+.bsa-mini-bar-wrap {
+  width: 60px;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  margin-bottom: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.bsa-mini-bar { height: 4px; border-radius: 2px; }
+
+/* Fraud flag cell */
+.bsa-td--flag { text-align: center; }
+.bsa-flag        { font-size: 0.75rem; font-weight: 700; border-radius: 4px; padding: 0.15rem 0.5rem; }
+.bsa-flag--yes   { color: #dc2626; background: #fee2e2; }
+.bsa-flag--no    { color: #16a34a; background: #dcfce7; }
+
+/* Form */
+.bsa-form { margin-bottom: 0; }

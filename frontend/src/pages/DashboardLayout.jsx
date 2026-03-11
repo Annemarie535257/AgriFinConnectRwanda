@@ -35,12 +35,14 @@ const MFI_SUB_NAV = [
   { tab: 'farmers', tKey: 'mfi.farmersProfiles', fallback: 'Farmers', Icon: UsersIcon },
   { tab: 'communication', tKey: 'mfi.communication', fallback: 'Communication', Icon: UsersIcon },
   { tab: 'portfolio', tKey: 'mfi.portfolio', Icon: PortfolioIcon },
+  { tab: 'fraud', tKey: 'card5.title', fallback: 'Fraud Detection', Icon: ActivityIcon },
 ];
 
 const ADMIN_SUB_NAV = [
+  { tab: 'overview', tKey: 'admin.stats', fallback: 'Overview', Icon: ChartIcon },
+  { tab: 'applications', tKey: 'dashboard.reviewApplications', fallback: 'Applications', Icon: ApplicationIcon },
+  { tab: 'users', tKey: 'dashboard.users', fallback: 'Users', Icon: UsersIcon },
   { tab: 'activity', tKey: 'admin.activity', fallback: 'Activity', Icon: ActivityIcon },
-  { tab: 'users', tKey: 'dashboard.users', Icon: UsersIcon },
-  { tab: 'stats', tKey: 'admin.stats', fallback: 'Stats', Icon: ChartIcon },
 ];
 
 function normalizeRole(rawRole) {
@@ -95,8 +97,8 @@ export default function DashboardLayout() {
   const rawTab = searchParams.get('tab');
   const defaultTab = isFarmer ? 'apply' : isMfi ? 'applications' : 'activity';
   const validFarmerTabs = ['apply', 'applications', 'loans', 'repayments', 'farm', 'profile'];
-  const validMfiTabs = ['applications', 'farmers', 'communication', 'portfolio'];
-  const validAdminTabs = ['activity', 'users', 'stats'];
+  const validMfiTabs = ['applications', 'farmers', 'communication', 'portfolio', 'fraud'];
+  const validAdminTabs = ['overview', 'applications', 'users', 'activity'];
   const validTabs = isFarmer ? validFarmerTabs : isMfi ? validMfiTabs : isAdmin ? validAdminTabs : [];
   const activeTab = (rawTab && validTabs.includes(rawTab)) ? rawTab : defaultTab;
 

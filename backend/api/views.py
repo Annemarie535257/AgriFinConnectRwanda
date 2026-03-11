@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import zipfile
 from collections.abc import Mapping
@@ -6,6 +7,7 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.http import HttpResponse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -14,6 +16,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+
+logger = logging.getLogger(__name__)
 
 from .explanations import eligibility_reason, eligibility_description, recommend_amount_explanation, risk_score_description
 from .ml_service import predict_eligibility, predict_risk, recommend_amount as recommend_loan_amount
@@ -27,6 +31,7 @@ from .models import (
     LoanApplication,
     LoanApplicationDocument,
     DOCUMENT_TYPE_CHOICES,
+    LOAN_STATUS_CHOICES,
     Loan,
     Repayment,
     LoanApplicationMessage,
@@ -202,6 +207,132 @@ def fraud_detect(request):
     except FileNotFoundError as e:
         return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def analyze_bank_statement(request):
+    """
+    POST /api/fraud-detect/statement/
+    Upload a PDF bank statement and get fraud analysis for every extracted transaction.
+
+    Multipart form fields:
+      - file         (required): the PDF bank statement
+      - customer_age (optional, int): customer age, default 35
+      - occupation   (optional): Doctor|Engineer|Retired|Student, default Engineer
+
+    Returns:
+      {
+        "statement_is_fraud":   bool,
+        "statement_risk_level": "LOW"|"MEDIUM"|"HIGH",
+        "statement_risk_score": float,
+        "fraud_ratio":          float,
+        "total_transactions":   int,
+        "flagged_count":        int,
+        "high_risk_count":      int,
+        "worst_transaction":    {...} | null,
+        "transactions":         [...],
+        "parse_warnings":       [...]
+      }
+    """
+    pdf_file = request.FILES.get('file')
+    if not pdf_file:
+        return Response({'error': 'No file uploaded. Send the PDF as "file" in multipart form data.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    if not pdf_file.name.lower().endswith('.pdf'):
+        return Response({'error': 'Only PDF files are supported.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    # Limit to 10 MB to prevent abuse
+    if pdf_file.size > 10 * 1024 * 1024:
+        return Response({'error': 'File too large. Maximum size is 10 MB.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        customer_age = int(request.data.get('customer_age', 35))
+    except (ValueError, TypeError):
+        customer_age = 35
+    occupation = request.data.get('occupation', 'Engineer')
+
+    try:
+        from api.pdf_statement_service import flag_statement
+        result = flag_statement(pdf_file, customer_age=customer_age, occupation=occupation)
+        return Response(result)
+    except RuntimeError as e:
+        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except FileNotFoundError as e:
+        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as e:
+        logger.exception("Bank statement analysis failed")
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def analyze_application_statement(request, pk):
+    """
+    POST /api/mfi/applications/<pk>/analyze-statement/
+
+    Retrieve the proof_of_income document already submitted by the farmer for this
+    loan application, run the full fraud analysis pipeline on it, and return the
+    statement-level verdict.
+
+    Optional JSON body:
+      { "occupation": "Engineer" }   (overrides the default if known)
+
+    Returns: same shape as /api/fraud-detect/statement/ (flag_statement result).
+    """
+    if not _is_microfinance(request.user):
+        return Response({'error': 'Microfinance access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        application = LoanApplication.objects.get(pk=pk)
+    except LoanApplication.DoesNotExist:
+        return Response({'error': 'Application not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Find the bank-statement / proof-of-income document
+    bank_statement_doc = application.documents.filter(document_type='proof_of_income').first()
+    if not bank_statement_doc or not bank_statement_doc.file:
+        return Response(
+            {'error': 'No bank statement (proof_of_income) document found for this application.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if not bank_statement_doc.file.name.lower().endswith('.pdf'):
+        return Response(
+            {'error': 'The submitted bank statement is not a PDF file. Only PDF statements can be scanned.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Derive age from application data if available
+    try:
+        customer_age = int(request.data.get('customer_age', 35))
+    except (ValueError, TypeError):
+        customer_age = 35
+    occupation = request.data.get('occupation', 'Engineer')
+
+    try:
+        from api.pdf_statement_service import flag_statement
+        with bank_statement_doc.file.open('rb') as pdf_file:
+            result = flag_statement(pdf_file, customer_age=customer_age, occupation=occupation)
+
+        # Attach application metadata for context
+        result['application_id']   = application.id
+        result['applicant_name']   = application.user.get_full_name() or application.user.username
+        result['applicant_email']  = application.user.email
+        result['document_name']    = bank_statement_doc.file.name.split('/')[-1]
+        return Response(result)
+    except ValueError as e:
+        # Raised by _check_is_bank_statement when the PDF is not a bank statement
+        return Response({'error': str(e)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    except RuntimeError as e:
+        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except FileNotFoundError as e:
+        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as e:
+        logger.exception("Application statement analysis failed for app %s", pk)
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -1611,6 +1742,125 @@ def mfi_portfolio(request):
 
 
 # ----- Admin APIs (extended) -----
+
+@swagger_auto_schema(method='get', operation_description='List all loan applications. Admin only.', tags=['Admin'])
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_applications_list(request):
+    """GET /api/admin/applications/ — List all loan applications."""
+    if not _is_admin(request.user):
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+    status_filter = request.query_params.get('status', '')
+    qs = LoanApplication.objects.select_related('user').order_by('-created_at')
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    limit = min(int(request.query_params.get('limit', 100)), 500)
+    qs = qs[:limit]
+    data = [
+        {
+            'id': a.id,
+            'user_email': a.user.username if a.user else '',
+            'status': a.status,
+            'loan_amount_requested': float(a.loan_amount_requested or 0),
+            'loan_duration_months': a.loan_duration_months,
+            'created_at': a.created_at.isoformat() if a.created_at else '',
+        }
+        for a in qs
+    ]
+    return Response({'applications': data, 'count': len(data)})
+
+
+@swagger_auto_schema(method='get', operation_description='Full detail of a single loan application. Admin only.', tags=['Admin'])
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_application_detail(request, application_id):
+    """GET /api/admin/applications/<id>/ — Full detail including farming fields, AI outputs, and documents."""
+    if not _is_admin(request.user):
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        app = LoanApplication.objects.select_related('user', 'reviewed_by').prefetch_related('documents').get(id=application_id)
+    except LoanApplication.DoesNotExist:
+        return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    documents = [
+        {
+            'id': d.id,
+            'document_type': d.document_type,
+            'document_type_display': d.get_document_type_display(),
+            'file_url': request.build_absolute_uri(d.file.url) if d.file else None,
+            'uploaded_at': d.uploaded_at.isoformat() if d.uploaded_at else '',
+        }
+        for d in app.documents.all()
+    ]
+
+    return Response({
+        'id': app.id,
+        'user_email': app.user.username if app.user else '',
+        'user_name': f"{app.user.first_name} {app.user.last_name}".strip() if app.user else '',
+        # Personal & financial
+        'age': app.age,
+        'annual_income': float(app.annual_income or 0),
+        'credit_score': app.credit_score,
+        'employment_status': app.employment_status,
+        'education_level': app.education_level,
+        'marital_status': app.marital_status,
+        # Loan details
+        'loan_amount_requested': float(app.loan_amount_requested or 0),
+        'loan_duration_months': app.loan_duration_months,
+        'loan_purpose': app.loan_purpose,
+        # Farming context
+        'farming_crops_or_activity': app.farming_crops_or_activity,
+        'farming_land_size_hectares': float(app.farming_land_size_hectares) if app.farming_land_size_hectares else None,
+        'farming_season': app.farming_season,
+        'farming_estimated_yield': float(app.farming_estimated_yield) if app.farming_estimated_yield else None,
+        'farming_livestock': app.farming_livestock,
+        'farming_notes': app.farming_notes,
+        # AI outputs
+        'eligibility_approved': app.eligibility_approved,
+        'eligibility_reason': app.eligibility_reason,
+        'risk_score': app.risk_score,
+        'recommended_amount': float(app.recommended_amount) if app.recommended_amount else None,
+        # Status & review
+        'status': app.status,
+        'reviewed_by': app.reviewed_by.username if app.reviewed_by else None,
+        'reviewed_at': app.reviewed_at.isoformat() if app.reviewed_at else None,
+        'rejection_reason': app.rejection_reason,
+        'created_at': app.created_at.isoformat() if app.created_at else '',
+        'updated_at': app.updated_at.isoformat() if app.updated_at else '',
+        # Documents
+        'documents': documents,
+    })
+
+
+@swagger_auto_schema(method='patch', operation_description='Update loan application status. Admin only.', tags=['Admin'])
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def admin_update_application_status(request, application_id):
+    """PATCH /api/admin/applications/<id>/status/ — Update status and optional rejection reason."""
+    if not _is_admin(request.user):
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        app = LoanApplication.objects.get(id=application_id)
+    except LoanApplication.DoesNotExist:
+        return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    new_status = request.data.get('status')
+    valid_statuses = [s[0] for s in LOAN_STATUS_CHOICES]
+    if new_status not in valid_statuses:
+        valid_str = ', '.join(valid_statuses)
+        return Response(
+            {'error': f'Invalid status. Must be one of: {valid_str}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    app.status = new_status
+    if 'rejection_reason' in request.data:
+        app.rejection_reason = request.data['rejection_reason']
+    app.reviewed_by = request.user
+    app.reviewed_at = timezone.now()
+    app.save(update_fields=['status', 'rejection_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    return Response({'success': True, 'id': app.id, 'status': app.status})
+
 
 @swagger_auto_schema(method='get', operation_description='List users. Admin only.', tags=['Admin'])
 @api_view(['GET'])

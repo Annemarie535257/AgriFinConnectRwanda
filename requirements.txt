@@ -1,11 +1,53 @@
-# AgriFinConnect-Rwanda: Multilingual Loan Chatbot Training
-# Install with: pip install -r requirements.txt
+# AgriFinConnect Rwanda — unified dependencies
+# Python version: see runtime.txt (python-3.11.10)
+# Install backend: pip install -r requirements.txt
+# Install notebook/training extras: pip install -r requirements.txt (all sections)
 
-transformers>=4.36.0
+# ─────────────────────────────────────────────
+# Django backend & API
+# ─────────────────────────────────────────────
+Django>=4.2,<5.1
+djangorestframework>=3.14
+django-cors-headers>=4.3
+drf-yasg>=1.21
+
+# Server & DB
+gunicorn>=21.0
+psycopg2-binary>=2.9
+dj-database-url>=2.1
+whitenoise>=6.6
+Pillow>=10.0
+pdfplumber>=0.10
+
+# ─────────────────────────────────────────────
+# ML core (shared by backend API + notebooks)
+# ─────────────────────────────────────────────
+joblib>=1.3
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+
+# ─────────────────────────────────────────────
+# NLP / Chatbot (transformers-based, PyTorch)
+# ─────────────────────────────────────────────
+transformers>=4.30,<5.0
+sentencepiece>=0.1.99
+huggingface-hub>=0.20
+torch>=2.2; python_version >= "3.9" and python_version < "3.13"
+
+# ─────────────────────────────────────────────
+# Notebook / training extras
+# (not needed on the backend server)
+# ─────────────────────────────────────────────
 datasets>=2.14.0
 accelerate>=0.25.0
 peft>=0.7.0
 bitsandbytes>=0.41.0
-pandas>=2.0.0
-torch>=2.0.0
-sentencepiece>=0.1.99
+matplotlib>=3.7
+seaborn>=0.13
+
+# ─────────────────────────────────────────────
+# Chatbot TF-to-PyTorch export (local only)
+# See backend/export_chatbot_to_pytorch.py
+# Run: pip install tensorflow>=2.13 (separately, not included here)
+# ─────────────────────────────────────────────
