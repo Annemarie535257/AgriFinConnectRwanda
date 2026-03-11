@@ -17,6 +17,12 @@ htmlcov/
 .DS_Store
 *.ipynb_checkpoints/
 
+# Large model files — never commit, load from Hugging Face Hub at runtime
+# (CHATBOT_MODEL_HF_REPO env var) or disable with CHATBOT_DISABLED=1
+AI_Chatbot_model/model.safetensors
+AI_Chatbot_model/tf_model.h5
+saved-model/
+
 # Dataset from Hugging Face (use notebooks to download; not needed for frontend deploy)
 datasets/Bitext-mortgage-loans-llm-chatbot-training-dataset/
 
