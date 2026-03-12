@@ -11,6 +11,7 @@ import {
   downloadFarmerApplicationPackage,
   getFarmerLoans,
   getFarmerRepayments,
+
   predictEligibility,
   predictRisk,
   recommendLoanAmount,
@@ -131,6 +132,7 @@ export default function FarmerDashboard() {
   const [applications, setApplications] = useState([]);
   const [loans, setLoans] = useState([]);
   const [repayments, setRepayments] = useState([]);
+  const [repaymentLoans, setRepaymentLoans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -263,6 +265,7 @@ export default function FarmerDashboard() {
       if (appsRes?.applications) setApplications(appsRes.applications);
       if (loansRes?.loans) setLoans(loansRes.loans);
       if (repayRes?.repayments) setRepayments(repayRes.repayments);
+      if (repayRes?.loans) setRepaymentLoans(repayRes.loans);
     } catch (err) {
       setError(err.body?.error || err.message || 'Failed to load data');
     } finally {
@@ -1211,18 +1214,53 @@ export default function FarmerDashboard() {
         {activeTab === 'repayments' && (
         <section className="farmer-dashboard__section" aria-labelledby="rep-heading">
           <h2 id="rep-heading" className="farmer-dashboard__section-title">{t('farmer.repayments') || 'Repayments'}</h2>
-          {repayments.length === 0 ? (
-            <p className="farmer-dashboard__empty">{t('farmer.noRepayments') || 'No repayments yet.'}</p>
+          {repaymentLoans.length === 0 ? (
+            <p className="farmer-dashboard__empty">{t('farmer.noRepayments') || 'No repayments yet. Your repayment schedule will appear here once your loan is approved.'}</p>
           ) : (
-            <div className="farmer-dashboard__list">
-              {repayments.map((r) => (
-                <div key={r.id} className="farmer-dashboard__card farmer-dashboard__card--small">
-                  <span>RWF {Number(r.amount).toLocaleString()}</span>
-                  <span>Due: {r.due_date}</span>
-                  <span className={`farmer-dashboard__status farmer-dashboard__status--${r.status}`}>{r.status}</span>
+            repaymentLoans.map((loan) => {
+              const paidCount = loan.repayments.filter((r) => r.status === 'paid').length;
+              const total = loan.repayments.length;
+              return (
+                <div key={loan.loan_id} className="repay-loan-block">
+                  <div className="repay-loan-header">
+                    <div className="repay-loan-summary">
+                      <span className="repay-loan-title">Loan #{loan.loan_id}</span>
+                      <span className="repay-loan-amount">RWF {Number(loan.total_amount).toLocaleString()} total</span>
+                      <span className="repay-loan-monthly">RWF {Number(loan.monthly_payment).toLocaleString()} / month</span>
+                      <span className="repay-loan-duration">{loan.duration_months} months &nbsp;·&nbsp; {(Number(loan.interest_rate) * 100).toFixed(1)}% interest</span>
+                    </div>
+                    <div className="repay-loan-progress">
+                      <div className="repay-progress-bar">
+                        <div className="repay-progress-fill" style={{ width: `${total > 0 ? Math.round((paidCount / total) * 100) : 0}%` }} />
+                      </div>
+                      <span className="repay-progress-label">{paidCount}/{total} paid</span>
+                    </div>
+                  </div>
+                  <div className="repay-calendar-grid">
+                    {loan.repayments.map((r) => {
+                      const d = new Date(r.due_date);
+                      const monthName = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+                      const isOverdue = r.status !== 'paid' && new Date(r.due_date) < new Date();
+                      const statusClass = r.status === 'paid' ? 'paid' : isOverdue ? 'overdue' : 'pending';
+                      return (
+                        <div key={r.id} className={`repay-month-card repay-month-card--${statusClass}`}>
+                          <div className="repay-month-name">{monthName}</div>
+                          <div className="repay-month-amount">RWF {Number(r.amount).toLocaleString()}</div>
+                          <div className="repay-month-due">Due {r.due_date}</div>
+                          {r.status === 'paid' ? (
+                            <div className="repay-tick" title="Paid">&#10003;</div>
+                          ) : (
+                            <div className={`repay-status-label repay-status-label--${isOverdue ? 'overdue' : 'pending'}`}>
+                              {isOverdue ? 'Overdue' : 'Pending'}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })
           )}
         </section>
         )}

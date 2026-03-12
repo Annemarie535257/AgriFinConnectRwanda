@@ -1,3 +1,186 @@
+/* ===== Repayment Calendar ===== */
+.repay-loan-block {
+  background: var(--color-surface, #1a1a2e);
+  border: 1px solid var(--color-border, #2a2a4a);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.repay-loan-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.repay-loan-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.2rem;
+  align-items: center;
+}
+
+.repay-loan-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary, #4ade80);
+}
+
+.repay-loan-amount {
+  font-size: 0.9rem;
+  color: var(--color-text, #e2e8f0);
+}
+
+.repay-loan-monthly {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+.repay-loan-duration {
+  font-size: 0.82rem;
+  color: var(--color-text-muted, #94a3b8);
+}
+
+.repay-loan-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 160px;
+}
+
+.repay-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.repay-progress-fill {
+  height: 100%;
+  background: #4ade80;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.repay-progress-label {
+  font-size: 0.82rem;
+  color: var(--color-text-muted, #94a3b8);
+  white-space: nowrap;
+}
+
+.repay-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.repay-month-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border, #2a2a4a);
+  border-radius: 0.75rem;
+  padding: 0.85rem 0.75rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  text-align: center;
+  transition: transform 0.15s;
+}
+
+.repay-month-card:hover {
+  transform: translateY(-2px);
+}
+
+.repay-month-card--paid {
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(74, 222, 128, 0.07);
+}
+
+.repay-month-card--overdue {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.07);
+}
+
+.repay-month-card--pending {
+  border-color: var(--color-border, #2a2a4a);
+}
+
+.repay-month-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text, #e2e8f0);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.repay-month-amount {
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #94a3b8);
+}
+
+.repay-month-due {
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #94a3b8);
+}
+
+.repay-tick {
+  margin-top: 0.35rem;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #4ade80;
+  color: #0a0a1a;
+  font-size: 1rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.repay-mark-paid-btn {
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--color-primary, #4ade80);
+  color: var(--color-primary, #4ade80);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.repay-mark-paid-btn:hover:not(:disabled) {
+  background: var(--color-primary, #4ade80);
+  color: #0a0a1a;
+}
+
+.repay-mark-paid-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Read-only status shown on farmer calendar (no button) */
+.repay-status-label {
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.repay-status-label--pending { background: rgba(250,204,21,0.18); color: #b45309; }
+.repay-status-label--overdue { background: rgba(239,68,68,0.15);  color: #dc2626; }
+
+/* ===== End Repayment Calendar ===== */
+
 .farmer-dashboard__tabs {
   display: flex;
   flex-wrap: wrap;

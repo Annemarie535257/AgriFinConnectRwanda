@@ -1187,14 +1187,36 @@ def farmer_loans(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def farmer_repayments(request):
-    """GET /api/farmer/repayments/ — List repayments for my loans."""
+    """GET /api/farmer/repayments/ — List repayments for my loans, grouped by loan."""
     if not _is_farmer(request.user):
         return Response({'error': 'Farmer access required'}, status=status.HTTP_403_FORBIDDEN)
     apps = LoanApplication.objects.filter(user=request.user, status='approved')
     loan_ids = [a.id for a in apps]
-    loans = Loan.objects.filter(application_id__in=loan_ids)
-    repayments = Repayment.objects.filter(loan__in=loans).select_related('loan').order_by('-due_date')[:100]
-    data = [
+    loans = Loan.objects.filter(application_id__in=loan_ids).prefetch_related('repayments')
+    loans_data = []
+    for loan in loans:
+        repayments = list(loan.repayments.order_by('due_date'))
+        loans_data.append({
+            'loan_id': loan.id,
+            'application_id': loan.application_id,
+            'total_amount': float(loan.amount),
+            'monthly_payment': float(loan.monthly_payment),
+            'interest_rate': float(loan.interest_rate),
+            'duration_months': loan.duration_months,
+            'created_at': loan.created_at.isoformat(),
+            'repayments': [
+                {
+                    'id': r.id,
+                    'amount': float(r.amount),
+                    'due_date': str(r.due_date),
+                    'status': r.status,
+                    'paid_at': r.paid_at.isoformat() if r.paid_at else None,
+                }
+                for r in repayments
+            ],
+        })
+    # Flat list kept for backward compat
+    all_repayments = [
         {
             'id': r.id,
             'loan_id': r.loan_id,
@@ -1203,9 +1225,18 @@ def farmer_repayments(request):
             'status': r.status,
             'paid_at': r.paid_at.isoformat() if r.paid_at else None,
         }
-        for r in repayments
+        for loan in loans
+        for r in loan.repayments.order_by('due_date')
     ]
-    return Response({'repayments': data, 'count': len(data)})
+    return Response({'repayments': all_repayments, 'loans': loans_data, 'count': len(all_repayments)})
+
+
+@swagger_auto_schema(method='patch', operation_description='Disabled — repayments are marked paid by MFI only.', tags=['Farmer'])
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def farmer_mark_repayment_paid(request, pk):
+    """PATCH /api/farmer/repayments/<id>/mark-paid/ — Disabled; only MFI can mark repayments paid."""
+    return Response({'error': 'Only the microfinance institution can mark repayments as paid.'}, status=status.HTTP_403_FORBIDDEN)
 
 
 # ----- MFI APIs -----
@@ -1587,23 +1618,30 @@ def mfi_update_application_status(request, pk):
         interest_rate = float(data.get('interest_rate', 0.12))
         duration = int(data.get('duration_months') or app.loan_duration_months)
         monthly = amount * (interest_rate / 12) * (1 + interest_rate / 12) ** duration / ((1 + interest_rate / 12) ** duration - 1) if duration else 0
-        Loan.objects.create(
+        loan, loan_created = Loan.objects.get_or_create(
             application=app,
-            amount=amount,
-            interest_rate=interest_rate,
-            duration_months=duration,
-            monthly_payment=round(monthly, 2),
+            defaults=dict(
+                amount=amount,
+                interest_rate=interest_rate,
+                duration_months=duration,
+                monthly_payment=round(monthly, 2),
+            ),
         )
-        from datetime import timedelta
+        import calendar as _cal
+        from datetime import date as _date
         from decimal import Decimal
-        due = timezone.now().date()
-        loan = app.approved_loan.get()
-        for i in range(duration):
-            due += timedelta(days=30)
-            Repayment.objects.create(loan=loan, amount=Decimal(str(round(monthly, 2))), due_date=due)
-        ApplicationStatusUpdate.objects.create(
-            application=app, status='approved', note=note or 'Approved by MFI', updated_by=request.user,
-        )
+        if loan_created:
+            start = timezone.now().date()
+            for i in range(duration):
+                m = start.month + i + 1
+                y = start.year + (m - 1) // 12
+                m = (m - 1) % 12 + 1
+                day = min(start.day, _cal.monthrange(y, m)[1])
+                Repayment.objects.create(loan=loan, amount=Decimal(str(round(monthly, 2))), due_date=_date(y, m, day))
+        if not ApplicationStatusUpdate.objects.filter(application=app, status='approved').exists():
+            ApplicationStatusUpdate.objects.create(
+                application=app, status='approved', note=note or 'Approved by MFI', updated_by=request.user,
+            )
     elif new_status == 'rejected':
         app.reviewed_by = request.user
         app.reviewed_at = timezone.now()
@@ -1699,12 +1737,16 @@ def mfi_review_application(request, pk):
             monthly_payment=round(monthly, 2),
         )
         # Create repayment schedule
-        from datetime import timedelta
+        import calendar as _cal
+        from datetime import date as _date
         from decimal import Decimal
-        due = timezone.now().date()
+        start = timezone.now().date()
         for i in range(duration):
-            due += timedelta(days=30)
-            Repayment.objects.create(loan=loan, amount=Decimal(str(round(monthly, 2))), due_date=due)
+            m = start.month + i + 1
+            y = start.year + (m - 1) // 12
+            m = (m - 1) % 12 + 1
+            day = min(start.day, _cal.monthrange(y, m)[1])
+            Repayment.objects.create(loan=loan, amount=Decimal(str(round(monthly, 2))), due_date=_date(y, m, day))
     else:
         app.status = 'rejected'
         app.rejection_reason = str(data.get('rejection_reason', ''))[:500]
@@ -1724,20 +1766,83 @@ def mfi_review_application(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def mfi_portfolio(request):
-    """GET /api/mfi/portfolio/ — Portfolio and repayment performance."""
+    """GET /api/mfi/portfolio/ — Portfolio and repayment performance, including per-loan schedules."""
     if not _is_microfinance(request.user):
         return Response({'error': 'Microfinance access required'}, status=status.HTTP_403_FORBIDDEN)
-    total_loans = Loan.objects.count()
     from django.db.models import Sum
-    total_disbursed = Loan.objects.aggregate(s=Sum('amount'))['s'] or 0
-    repayments = Repayment.objects.select_related('loan').all()
-    paid = sum(1 for r in repayments if r.status == 'paid')
-    overdue = sum(1 for r in repayments if r.status == 'overdue')
-    pending = sum(1 for r in repayments if r.status == 'pending')
+    loans_qs = Loan.objects.select_related('application__user').prefetch_related('repayments').order_by('-created_at')
+    total_loans = loans_qs.count()
+    total_disbursed = loans_qs.aggregate(s=Sum('amount'))['s'] or 0
+    all_repayments = Repayment.objects.all()
+    paid = sum(1 for r in all_repayments if r.status == 'paid')
+    overdue = sum(1 for r in all_repayments if r.status == 'overdue')
+    pending = sum(1 for r in all_repayments if r.status == 'pending')
+    from datetime import date as _today_cls
+    today = _today_cls.today()
+    loans_data = []
+    for loan in loans_qs:
+        app = loan.application
+        farmer_name = (app.user.first_name or app.user.username.split('@')[0]) if app and app.user else '—'
+        farmer_email = (app.user.email or app.user.username) if app and app.user else '—'
+        repayments_list = list(loan.repayments.order_by('due_date'))
+        # Auto-mark past-due pending repayments as overdue
+        for r in repayments_list:
+            if r.status == 'pending' and r.due_date < today:
+                r.status = 'overdue'
+                r.save(update_fields=['status'])
+        loans_data.append({
+            'loan_id': loan.id,
+            'application_id': loan.application_id,
+            'farmer_name': farmer_name,
+            'farmer_email': farmer_email,
+            'amount': float(loan.amount),
+            'monthly_payment': float(loan.monthly_payment),
+            'interest_rate': float(loan.interest_rate),
+            'duration_months': loan.duration_months,
+            'issued_at': loan.created_at.date().isoformat(),
+            'created_at': loan.created_at.isoformat(),
+            'repayments': [
+                {
+                    'id': r.id,
+                    'amount': float(r.amount),
+                    'due_date': str(r.due_date),
+                    'status': r.status,
+                    'paid_at': r.paid_at.isoformat() if r.paid_at else None,
+                }
+                for r in repayments_list
+            ],
+        })
     return Response({
         'total_loans': total_loans,
         'total_amount_disbursed': float(total_disbursed),
-        'repayments': {'paid': paid, 'overdue': overdue, 'pending': pending, 'total': repayments.count()},
+        'repayments': {'paid': paid, 'overdue': overdue, 'pending': pending, 'total': all_repayments.count()},
+        'loans': loans_data,
+    })
+
+
+@swagger_auto_schema(method='patch', operation_description='Mark a repayment as paid. MFI only.', tags=['MFI'])
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def mfi_mark_repayment_paid(request, pk):
+    """PATCH /api/mfi/repayments/<id>/mark-paid/ — Mark any repayment as paid (MFI only)."""
+    if not _is_microfinance(request.user):
+        return Response({'error': 'Microfinance access required'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        repayment = Repayment.objects.get(pk=pk)
+    except Repayment.DoesNotExist:
+        return Response({'error': 'Repayment not found'}, status=status.HTTP_404_NOT_FOUND)
+    if repayment.status == 'paid':
+        return Response({'id': repayment.id, 'status': repayment.status, 'paid_at': repayment.paid_at.isoformat()})
+    from django.utils import timezone as tz
+    repayment.status = 'paid'
+    repayment.paid_at = tz.now()
+    repayment.save(update_fields=['status', 'paid_at'])
+    return Response({
+        'id': repayment.id,
+        'status': repayment.status,
+        'paid_at': repayment.paid_at.isoformat(),
+        'amount': float(repayment.amount),
+        'due_date': str(repayment.due_date),
     })
 
 

@@ -7,6 +7,7 @@ import {
   updateMfiApplicationStatus,
   sendMfiApplicationMessage,
   getMfiPortfolio,
+  mfiMarkRepaymentPaid,
   downloadMfiApplicationPackage,
 } from '../api/client';
 import FloatingChatbot from '../components/FloatingChatbot';
@@ -31,6 +32,7 @@ export default function MicrofinanceDashboard() {
   const activeTab = (rawTab === 'applications' || rawTab === 'portfolio' || rawTab === 'communication' || rawTab === 'farmers' || rawTab === 'fraud') ? rawTab : 'applications';
   const [applications, setApplications] = useState([]);
   const [portfolio, setPortfolio] = useState(null);
+  const [mfiMarkingPaid, setMfiMarkingPaid] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -375,32 +377,162 @@ export default function MicrofinanceDashboard() {
         {activeTab === 'portfolio' && (
           <section className="mfi-dashboard__section" aria-labelledby="mfi-portfolio-heading">
             <h2 id="mfi-portfolio-heading" className="mfi-dashboard__section-title">{t('mfi.portfolio')}</h2>
-            {portfolio ? (
-              <div className="mfi-dashboard__portfolio dashboard-grid">
+
+            {/* Summary row */}
+            {portfolio && (
+              <div className="dashboard-grid mfi-portfolio-summary">
                 <div className="dashboard-card">
                   <h3 className="dashboard-card__title">{t('mfi.totalLoans')}</h3>
                   <div className="dashboard-card__value">{portfolio.total_loans}</div>
                 </div>
                 <div className="dashboard-card">
                   <h3 className="dashboard-card__title">{t('mfi.totalDisbursed')}</h3>
-                  <div className="dashboard-card__value dashboard-card__value--small">
-                    RWF {Number(portfolio.total_amount_disbursed).toLocaleString()}
-                  </div>
+                  <div className="dashboard-card__value dashboard-card__value--small">RWF {Number(portfolio.total_amount_disbursed).toLocaleString()}</div>
                 </div>
                 {portfolio.repayments && (
-                  <div className="dashboard-card dashboard-card--wide">
+                  <div className="dashboard-card">
                     <h3 className="dashboard-card__title">Repayments</h3>
                     <div className="mfi-dashboard__repayments">
-                      <span className="mfi-dashboard__rep-span">Paid: {portfolio.repayments.paid}</span>
-                      <span className="mfi-dashboard__rep-span">Pending: {portfolio.repayments.pending}</span>
-                      <span className="mfi-dashboard__rep-span">Overdue: {portfolio.repayments.overdue}</span>
+                      <span className="mfi-rep-pill mfi-rep-pill--paid">Paid: {portfolio.repayments.paid}</span>
+                      <span className="mfi-rep-pill mfi-rep-pill--pending">Pending: {portfolio.repayments.pending}</span>
+                      <span className="mfi-rep-pill mfi-rep-pill--overdue">Overdue: {portfolio.repayments.overdue}</span>
                     </div>
                   </div>
                 )}
               </div>
-            ) : (
-              <p className="mfi-dashboard__empty">{t('mfi.noApplications')}</p>
             )}
+
+            {/* Per-loan repayment tables */}
+            {portfolio?.loans?.length > 0 ? (
+              <div style={{ marginTop: '2rem' }}>
+                <h3 className="mfi-dashboard__sub-title">Repayment schedules</h3>
+                {portfolio.loans.map((loan) => {
+                  const paidCount = loan.repayments.filter((r) => r.status === 'paid').length;
+                  const total = loan.repayments.length;
+                  return (
+                    <div key={loan.loan_id} className="mfi-repay-table-block">
+                      {/* Farmer / loan header */}
+                      <div className="mfi-repay-table-header">
+                        <div className="mfi-repay-table-farmer">
+                          <span className="mfi-repay-farmer-name">{loan.farmer_name}</span>
+                          <span className="mfi-repay-farmer-email">{loan.farmer_email}</span>
+                          {loan.issued_at && (
+                            <span className="mfi-repay-issued">Issued: {new Date(loan.issued_at).toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                          )}
+                        </div>
+                        <div className="mfi-repay-table-meta">
+                          <span>Loan #{loan.loan_id}</span>
+                          <span className="mfi-repay-meta-sep">·</span>
+                          <span>RWF {Number(loan.amount).toLocaleString()} total</span>
+                          <span className="mfi-repay-meta-sep">·</span>
+                          <span className="mfi-repay-monthly">RWF {Number(loan.monthly_payment).toLocaleString()} / month</span>
+                          <span className="mfi-repay-meta-sep">·</span>
+                          <span>{loan.duration_months} months</span>
+                          <span className="mfi-repay-meta-sep">·</span>
+                          <span>{(Number(loan.interest_rate) * 100).toFixed(1)}% interest</span>
+                        </div>
+                        <div className="mfi-repay-table-progress">
+                          <div className="repay-progress-bar">
+                            <div className="repay-progress-fill" style={{ width: `${total > 0 ? Math.round((paidCount / total) * 100) : 0}%` }} />
+                          </div>
+                          <span className="repay-progress-label">{paidCount}/{total} paid</span>
+                        </div>
+                      </div>
+
+                      {/* Monthly payments table */}
+                      <div className="mfi-repay-table-wrap">
+                        <table className="mfi-repay-table">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Month</th>
+                              <th>Due date</th>
+                              <th>Amount (RWF)</th>
+                              <th>Status</th>
+                              <th>Paid on</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {loan.repayments.map((r, idx) => {
+                              const d = new Date(r.due_date + 'T12:00:00');
+                              const now = new Date();
+                              const isCurrentMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+                              const monthName = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+                              const isOverdue = r.status !== 'paid' && new Date(r.due_date) < now;
+                              const statusLabel = r.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : isCurrentMonth ? 'Due now' : 'Pending';
+                              const statusClass = r.status === 'paid' ? 'paid' : isOverdue ? 'overdue' : isCurrentMonth ? 'current' : 'pending';
+                              return (
+                                <tr key={r.id} className={`mfi-repay-row mfi-repay-row--${statusClass}${isCurrentMonth && r.status !== 'paid' ? ' mfi-repay-row--highlight' : ''}`}>
+                                  <td className="mfi-repay-td-num">{idx + 1}</td>
+                                  <td>
+                                    {monthName}
+                                    {isCurrentMonth && r.status !== 'paid' && (
+                                      <span className="mfi-current-badge">This month</span>
+                                    )}
+                                  </td>
+                                  <td>{r.due_date}</td>
+                                  <td>{Number(r.amount).toLocaleString()}</td>
+                                  <td>
+                                    <span className={`mfi-status-badge mfi-status-badge--${statusClass}`}>{statusLabel}</span>
+                                  </td>
+                                  <td className="mfi-repay-paid-on">
+                                    {r.paid_at ? new Date(r.paid_at).toLocaleDateString() : '—'}
+                                  </td>
+                                  <td>
+                                    {r.status === 'paid' ? (
+                                      <span className="mfi-repay-check">&#10003;</span>
+                                    ) : (
+                                      <button
+                                        className="repay-mark-paid-btn"
+                                        disabled={mfiMarkingPaid === r.id}
+                                        onClick={async () => {
+                                          setMfiMarkingPaid(r.id);
+                                          try {
+                                            const res = await mfiMarkRepaymentPaid(r.id);
+                                            setPortfolio((prev) => ({
+                                              ...prev,
+                                              loans: prev.loans.map((l) =>
+                                                l.loan_id !== loan.loan_id ? l : {
+                                                  ...l,
+                                                  repayments: l.repayments.map((rr) =>
+                                                    rr.id !== r.id ? rr : { ...rr, status: res.status, paid_at: res.paid_at }
+                                                  ),
+                                                }
+                                              ),
+                                              repayments: prev.repayments ? {
+                                                ...prev.repayments,
+                                                paid: prev.repayments.paid + 1,
+                                                pending: Math.max(0, prev.repayments.pending - (isOverdue ? 0 : 1)),
+                                                overdue: Math.max(0, prev.repayments.overdue - (isOverdue ? 1 : 0)),
+                                              } : prev.repayments,
+                                            }));
+                                          } catch (e) {
+                                            setError(e.body?.error || 'Failed to mark as paid');
+                                          } finally {
+                                            setMfiMarkingPaid(null);
+                                          }
+                                        }}
+                                      >
+                                        {mfiMarkingPaid === r.id ? '…' : 'Mark paid'}
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : portfolio && (
+              <p className="mfi-dashboard__empty" style={{ marginTop: '1.5rem' }}>No active loans yet.</p>
+            )}
+
+            {!portfolio && <p className="mfi-dashboard__empty">{t('mfi.noApplications')}</p>}
           </section>
         )}
 

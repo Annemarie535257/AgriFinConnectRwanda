@@ -335,6 +335,11 @@ export async function getFarmerRepayments() {
   return authRequest('/farmer/repayments/');
 }
 
+/** PATCH /api/farmer/repayments/<id>/mark-paid/ */
+export async function markRepaymentPaid(id) {
+  return authRequest(`/farmer/repayments/${id}/mark-paid/`, { method: 'PATCH' });
+}
+
 // ----- MFI APIs -----
 
 /** GET /api/mfi/applications */
@@ -369,6 +374,11 @@ export async function sendMfiApplicationMessage(id, message) {
 /** GET /api/mfi/portfolio */
 export async function getMfiPortfolio() {
   return authRequest('/mfi/portfolio/');
+}
+
+/** PATCH /api/mfi/repayments/<id>/mark-paid/ */
+export async function mfiMarkRepaymentPaid(id) {
+  return authRequest(`/mfi/repayments/${id}/mark-paid/`, { method: 'PATCH' });
 }
 
 /** GET /api/mfi/applications/<id>/package — download ZIP (summary PDF + uploaded docs) */

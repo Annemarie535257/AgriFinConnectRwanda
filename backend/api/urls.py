@@ -23,6 +23,7 @@ urlpatterns = [
     path('farmer/applications/<int:pk>/package/', views.farmer_application_package),
     path('farmer/loans/', views.farmer_loans),
     path('farmer/repayments/', views.farmer_repayments),
+    path('farmer/repayments/<int:pk>/mark-paid/', views.farmer_mark_repayment_paid),
     # MFI dashboard APIs
     path('mfi/applications/', views.mfi_applications),
     path('mfi/applications/<int:pk>/package/', views.mfi_application_package),
@@ -31,6 +32,7 @@ urlpatterns = [
     path('mfi/applications/<int:pk>/messages/', views.mfi_send_application_message),
     path('mfi/applications/<int:pk>/analyze-statement/', views.analyze_application_statement),
     path('mfi/portfolio/', views.mfi_portfolio),
+    path('mfi/repayments/<int:pk>/mark-paid/', views.mfi_mark_repayment_paid),
     # ML model APIs
     path('eligibility/', views.eligibility),
     path('risk/', views.risk),
