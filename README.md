@@ -11,18 +11,7 @@ DEMO LINK: https://drive.google.com/file/d/1loEs-dxLta9XgLZvLriXO-GBeUfeL_SX/vie
 
 ## Live Deployment
 
-| What | URL |
-|---|---|
-| **Frontend (Netlify)** | https://agrifinconnectrwanda.netlify.app/ |
-| **Swagger / API docs** | https://agrifinconnectrwanda.onrender.com/swagger/ |
-| **Chatbot model (Hugging Face)** | https://huggingface.co/Annemarie535257/agrifinconnect-chatbot |
-| **Source code (GitHub)** | https://github.com/Annemarie535257/AgriFinConnectRwanda |
-
-- **Frontend** — Netlify. Production builds call the Render API by default (no env var needed unless you change the API URL).
-- **Backend** — Render. `render.yaml` configures the build/start commands, environment variables, and `GIT_LFS_SKIP_SMUDGE=1` to skip large model files.
-- **Chatbot model** — Fine-tuned Flan-T5 hosted on Hugging Face Hub at `Annemarie535257/agrifinconnect-chatbot`. Backend loads from the Hub when `CHATBOT_MODEL_HF_REPO` is set. Chatbot is disabled on Render free tier (`CHATBOT_DISABLED=1`) to conserve RAM.
-- **Loan / fraud ML models** — scikit-learn `.pkl` files committed to the repo under `loan_default_risk_model/` and `fraud_detection_model/`. Loaded lazily at runtime; always active on Render.
-- **Database** — SQLite (default, in `backend/db.sqlite3`). For persistent production data, provision a PostgreSQL database on Render and set `DATABASE_URL`.
+DEPLOYMENT URL: https://video.kandaassist.com/
 
 ---
 
@@ -230,7 +219,7 @@ When an MFI officer approves a loan, the backend:
 | Dataset | Source | Used by |
 |---|---|---|
 | `datasets/Loan.csv` | [Kaggle — Financial Risk for Loan Approval](https://www.kaggle.com/datasets/lorenzozoppelletto/financial-risk-for-loan-approval) | `train_loan_default_risk_model.ipynb` → Models 1, 2, 3 |
-| `datasets/bank_transactions_data_2.csv` | Bank transaction data | `train_fraud_detection_model.ipynb` → Model 4 |
+| `datasets/bank_transactions_data_2.csv` | https://www.kaggle.com/datasets/valakhorasani/bank-transaction-dataset-for-fraud-detection?resource=download | `train_fraud_detection_model.ipynb` → Model 4 |
 | `datasets/Bitext-mortgage-loans-llm-chatbot-training-dataset/` | [Hugging Face — Bitext Mortgage Loans LLM Chatbot](https://huggingface.co/datasets/bitext/Bitext-mortgage-loans-llm-chatbot-training-dataset) | `Financial_LLM_Chatbot.ipynb` → Flan-T5 fine-tuning |
 
 **Loan dataset key statistics** (20,000 rows, `loan_cleaned.csv`):
@@ -440,65 +429,6 @@ Full request/response schemas: http://127.0.0.1:8080/swagger/
 
 ---
 
-## 11. Environment Variables
-
-### Backend (`backend/config/settings.py` / Render environment)
-
-| Variable | Description | Default |
-|---|---|---|
-| `DJANGO_SECRET_KEY` | Django secret key | Hardcoded dev value — **change in production** |
-| `DJANGO_DEBUG` | `"1"` = debug on, `"0"` = debug off | `"1"` |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hostnames | `localhost,127.0.0.1` |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated frontend origins | `http://localhost:3001` |
-| `DATABASE_URL` | PostgreSQL connection string (Render) | Not set — uses SQLite |
-| `CHATBOT_MODEL_HF_REPO` | HuggingFace repo to load chatbot from | Not set — uses local dir |
-| `CHATBOT_DISABLED` | `"1"` disables chatbot to save RAM | Not set |
-| `GIT_LFS_SKIP_SMUDGE` | `"1"` skips LFS file download on clone | Set in `render.yaml` |
-| `PASSWORD_RESET_FRONTEND_URL` | Base URL for password reset links | Not set |
-| `DJANGO_EMAIL_BACKEND` | Email backend class | Django console backend |
-
-### Frontend (Netlify build environment)
-
-| Variable | Description |
-|---|---|
-| `VITE_API_URL` | API base URL in production (e.g. `https://agrifinconnectrwanda.onrender.com/api`). If unset, bundled default is used. |
-
----
-
-## 12. Deployment
-
-### Render (backend)
-
-The `render.yaml` at the project root configures the Render service:
-
-```yaml
-buildCommand: pip install -r backend/requirements-render.txt && cd backend && python manage.py collectstatic --noinput && python manage.py migrate --noinput
-startCommand: cd backend && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
-envVars:
-  - GIT_LFS_SKIP_SMUDGE: "1"
-  - CHATBOT_DISABLED: "1"
-```
-
-- Uses `backend/requirements-render.txt` (lean — excludes torch/transformers/bitsandbytes to fit Render's free tier memory limit).
-- Loan and fraud models (`.pkl` files) are committed to the repo and available on Render without LFS.
-- Chatbot model is not deployed on Render free tier (disabled); enable by unsetting `CHATBOT_DISABLED` and setting `CHATBOT_MODEL_HF_REPO`.
-
-### Netlify (frontend)
-
-- Build command: `npm run build` (from `frontend/`)
-- Publish directory: `frontend/dist`
-- The `netlify/functions/` directory can host Netlify Edge Functions if needed.
-- Set `VITE_API_URL` build variable only if your Render backend URL differs from the default.
-
-### Pushing the chatbot model to Hugging Face
-
-```bash
-# Requires huggingface_hub installed and HF_TOKEN set as environment variable
-python backend/push_chatbot_to_huggingface.py Annemarie535257/agrifinconnect-chatbot
-```
-
----
-
 ## 13. Known Behaviours & Notes
 
 | Topic | Detail |
@@ -509,17 +439,3 @@ python backend/push_chatbot_to_huggingface.py Annemarie535257/agrifinconnect-cha
 | **Income scaling** | If a farmer's income is below the training distribution minimum, it is scaled up to `TARGET_INCOME_USD = 45,000` while preserving the loan/income ratio (DTI) so the model gives a meaningful prediction. |
 | **Mark paid — MFI only** | `PATCH /api/farmer/repayments/<id>/mark-paid/` always returns `403`. The "Mark paid" button does not exist on the farmer dashboard. |
 | **Auto-overdue** | On every `GET /api/mfi/portfolio/` call, any `pending` repayment whose `due_date < today` is automatically updated to `overdue`. |
-| **Chatbot on Render free tier** | Disabled by default (`CHATBOT_DISABLED=1`) to stay within the 512 MB RAM limit. The floating widget still renders but returns a friendly "unavailable" message. |
-
----
-
-| What | URL |
-|---|---|
-| **Live app (frontend)** | https://agrifinconnectrwanda.netlify.app/ |
-| **Swagger / API docs** | https://agrifinconnectrwanda.onrender.com/swagger/ |
-| **Chatbot model (Hugging Face)** | https://huggingface.co/Annemarie535257/agrifinconnect-chatbot |
-| **Source code (GitHub)** | https://github.com/Annemarie535257/AgriFinConnectRwanda |
-
-```bash
-git clone https://github.com/Annemarie535257/AgriFinConnectRwanda.git
-```

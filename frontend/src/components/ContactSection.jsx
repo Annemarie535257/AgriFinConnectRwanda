@@ -3,7 +3,7 @@ import { useLanguage } from '../context/LanguageContext';
 import './ContactSection.css';
 
 // Reuse the same service keys as the main services section so labels stay in sync
-const SERVICE_CARD_KEYS = ['loanApplication', 'eligibility', 'risk', 'recommendation', 'documents', 'farmData'];
+const SERVICE_CARD_KEYS = ['loanApplication', 'eligibility', 'risk', 'recommendation', 'documents', 'farmData', 'fraudDetection'];
 
 export default function ContactSection() {
   const { t } = useLanguage();

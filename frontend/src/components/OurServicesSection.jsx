@@ -8,6 +8,7 @@ const SERVICES = [
   { key: 'recommendation', icon: '💰' },
   { key: 'documents', icon: '🗂️' },
   { key: 'farmData', icon: '🌾' },
+  { key: 'fraudDetection', icon: '🛡️' },
 ];
 
 export default function OurServicesSection() {
