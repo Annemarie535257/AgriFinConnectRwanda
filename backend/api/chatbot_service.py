@@ -14,6 +14,7 @@ constrained hosts like Render free tier). The chat endpoint will return a static
 """
 import logging
 import os
+from functools import lru_cache
 from pathlib import Path
 
 from django.conf import settings
@@ -32,9 +33,13 @@ CHATBOT_MODEL_HF_REPO = (getattr(settings, 'CHATBOT_MODEL_HF_REPO', None) or '')
 
 # Input prefix used during training (Financial_LLM_Chatbot.ipynb)
 INPUT_PREFIX = "answer the question: "
-MAX_INPUT_LENGTH = 256
-DEFAULT_MAX_NEW_TOKENS = 128
-DEFAULT_TEMPERATURE = 0.7
+MAX_INPUT_LENGTH = 128
+DEFAULT_MAX_NEW_TOKENS = 64
+DEFAULT_TEMPERATURE = 0.0
+CHATBOT_CACHE_SIZE = max(0, int(os.environ.get('CHATBOT_CACHE_SIZE', '256') or 256))
+CHATBOT_SHORT_REPLY_MODE = os.environ.get('CHATBOT_SHORT_REPLY_MODE', '1').strip().lower() in ('1', 'true', 'yes')
+SHORT_REPLY_MAX_NEW_TOKENS = max(16, int(os.environ.get('SHORT_REPLY_MAX_NEW_TOKENS', '40') or 40))
+SHORT_REPLY_MAX_INPUT_CHARS = max(40, int(os.environ.get('SHORT_REPLY_MAX_INPUT_CHARS', '220') or 220))
 
 _tokenizer = None
 _model = None
@@ -73,9 +78,13 @@ def _load_chatbot():
 
     # 1) Try PyTorch first (no TensorFlow required; works on Render and Hub)
     try:
+        import torch
         from transformers import T5ForConditionalGeneration, T5TokenizerFast
         _tokenizer = T5TokenizerFast.from_pretrained(load_path)
         _model = T5ForConditionalGeneration.from_pretrained(load_path)
+        # Dynamic int8 quantization reduces CPU cost with minimal quality impact for T5-small.
+        _model = torch.quantization.quantize_dynamic(_model, {torch.nn.Linear}, dtype=torch.qint8)
+        _model.eval()
         _use_torch = True
         logger.info("Chatbot model loaded (PyTorch) from %s", "Hugging Face Hub" if use_hub else load_path)
         return True
@@ -120,18 +129,35 @@ def generate_reply(message, language='en', max_new_tokens=None, temperature=None
         return None
     if not _load_chatbot():
         return None
+    raw_message = str(message).strip()
+    use_default_tokens = max_new_tokens is None
     max_new_tokens = max_new_tokens if max_new_tokens is not None else DEFAULT_MAX_NEW_TOKENS
     temperature = temperature if temperature is not None else DEFAULT_TEMPERATURE
-    input_text = INPUT_PREFIX + str(message).strip()
+    if use_default_tokens and _should_use_short_reply(raw_message):
+        max_new_tokens = min(max_new_tokens, SHORT_REPLY_MAX_NEW_TOKENS)
+    max_new_tokens = max(16, min(128, int(max_new_tokens)))
+    temperature = max(0.0, float(temperature))
+    input_text = INPUT_PREFIX + raw_message
 
     if _use_torch:
-        return _generate_reply_torch(input_text, max_new_tokens, temperature)
+        return _cached_generate_reply_torch(input_text, max_new_tokens, temperature)
+    return _cached_generate_reply_tf(input_text, max_new_tokens, temperature)
+
+
+@lru_cache(maxsize=CHATBOT_CACHE_SIZE or 1)
+def _cached_generate_reply_torch(input_text, max_new_tokens, temperature):
+    return _generate_reply_torch(input_text, max_new_tokens, temperature)
+
+
+@lru_cache(maxsize=CHATBOT_CACHE_SIZE or 1)
+def _cached_generate_reply_tf(input_text, max_new_tokens, temperature):
     return _generate_reply_tf(input_text, max_new_tokens, temperature)
 
 
 def _generate_reply_torch(input_text, max_new_tokens, temperature):
     """Generate using PyTorch (no TensorFlow dependency)."""
     try:
+        import torch
         inputs = _tokenizer(
             input_text,
             return_tensors='pt',
@@ -142,17 +168,33 @@ def _generate_reply_torch(input_text, max_new_tokens, temperature):
         # Move to same device as model (CPU or GPU)
         device = next(_model.parameters()).device
         inputs = {k: v.to(device) for k, v in inputs.items()}
-        outputs = _model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature if temperature > 0 else 1.0,
-            do_sample=temperature > 0,
-            pad_token_id=_tokenizer.pad_token_id,
-        )
+        # Prefer greedy decoding by default for faster, lower-CPU inference.
+        do_sample = temperature > 0
+        with torch.inference_mode():
+            outputs = _model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature if do_sample else 1.0,
+                do_sample=do_sample,
+                pad_token_id=_tokenizer.pad_token_id,
+            )
         reply = _tokenizer.decode(outputs[0], skip_special_tokens=True)
         return reply.strip() if reply else None
     except Exception:
         return None
+
+
+def _should_use_short_reply(message: str) -> bool:
+    """Enable shorter replies for simple prompts to reduce CPU while keeping quality."""
+    if not CHATBOT_SHORT_REPLY_MODE:
+        return False
+    msg = (message or '').strip()
+    if not msg:
+        return False
+    if len(msg) > SHORT_REPLY_MAX_INPUT_CHARS:
+        return False
+    # Heuristic: short, single-turn prompts are usually FAQ-like and can use fewer tokens.
+    return msg.count('\n') <= 1
 
 
 def _generate_reply_tf(input_text, max_new_tokens, temperature):
