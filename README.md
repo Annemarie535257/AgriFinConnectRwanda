@@ -11,7 +11,9 @@ DEMO LINK: https://drive.google.com/file/d/1loEs-dxLta9XgLZvLriXO-GBeUfeL_SX/vie
 
 ## Live Deployment
 
-DEPLOYMENT URL: https://video.kandaassist.com/
+Frontend (Netlify): https://agrifinconnectrwanda.netlify.app/
+
+Backend API Docs (Render Swagger): https://agrifinconnectrwanda.onrender.com/swagger/
 
 ---
 

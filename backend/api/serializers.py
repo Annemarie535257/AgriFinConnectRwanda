@@ -14,26 +14,37 @@ class RegisterSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=[('farmer', 'Farmer'), ('microfinance', 'Microfinance')])
     name = serializers.CharField(required=False, allow_blank=True)
 
+    def validate(self, attrs):
+        attrs['email'] = (attrs.get('email') or '').strip().lower()
+        return attrs
+
     def validate_email(self, value):
-        if User.objects.filter(username=value).exists():
+        value = (value or '').strip().lower()
+        if User.objects.filter(username__iexact=value).exists():
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 
     def create(self, validated_data):
+        role = validated_data['role']
         user = User.objects.create_user(
             username=validated_data['email'],
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data.get('name') or '',
+            is_active=(role != 'farmer'),
         )
-        UserProfile.objects.create(user=user, role=validated_data['role'])
+        UserProfile.objects.create(user=user, role=role)
         return user
 
 
 class LoginSerializer(serializers.Serializer):
     """Login (all roles: farmer, microfinance, admin)."""
-    email = serializers.CharField()   # accepts both email addresses and plain usernames
+    email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        attrs['email'] = (attrs.get('email') or '').strip().lower()
+        return attrs
 
 
 class UserInfoSerializer(serializers.Serializer):

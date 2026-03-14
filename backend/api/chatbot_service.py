@@ -34,11 +34,12 @@ CHATBOT_MODEL_HF_REPO = (getattr(settings, 'CHATBOT_MODEL_HF_REPO', None) or '')
 # Input prefix used during training (Financial_LLM_Chatbot.ipynb)
 INPUT_PREFIX = "answer the question: "
 MAX_INPUT_LENGTH = 128
-DEFAULT_MAX_NEW_TOKENS = 64
+DEFAULT_MAX_NEW_TOKENS = 96
 DEFAULT_TEMPERATURE = 0.0
 CHATBOT_CACHE_SIZE = max(0, int(os.environ.get('CHATBOT_CACHE_SIZE', '256') or 256))
-CHATBOT_SHORT_REPLY_MODE = os.environ.get('CHATBOT_SHORT_REPLY_MODE', '1').strip().lower() in ('1', 'true', 'yes')
-SHORT_REPLY_MAX_NEW_TOKENS = max(16, int(os.environ.get('SHORT_REPLY_MAX_NEW_TOKENS', '40') or 40))
+# Keep short-reply mode opt-in. When enabled it lowers token budget for small prompts.
+CHATBOT_SHORT_REPLY_MODE = os.environ.get('CHATBOT_SHORT_REPLY_MODE', '0').strip().lower() in ('1', 'true', 'yes')
+SHORT_REPLY_MAX_NEW_TOKENS = max(32, int(os.environ.get('SHORT_REPLY_MAX_NEW_TOKENS', '80') or 80))
 SHORT_REPLY_MAX_INPUT_CHARS = max(40, int(os.environ.get('SHORT_REPLY_MAX_INPUT_CHARS', '220') or 220))
 
 _tokenizer = None

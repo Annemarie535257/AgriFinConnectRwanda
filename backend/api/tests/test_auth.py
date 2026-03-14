@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 
-from api.models import PasswordResetToken, UserProfile
+from api.models import FarmerRegistrationOTP, PasswordResetToken, UserProfile
 
 User = get_user_model()
 
@@ -18,6 +18,8 @@ REGISTER_URL = '/api/auth/register/'
 LOGIN_URL = '/api/auth/login/'
 FORGOT_URL = '/api/auth/forgot-password/'
 RESET_URL = '/api/auth/reset-password/'
+VERIFY_OTP_URL = '/api/auth/verify-registration-otp/'
+RESEND_OTP_URL = '/api/auth/resend-registration-otp/'
 
 
 # ---------------------------------------------------------------------------
@@ -36,9 +38,12 @@ class TestRegister:
         response = api_client.post(REGISTER_URL, payload, format='json')
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
-        assert 'token' in data
-        assert data['user']['role'] == 'farmer'
-        assert data['user']['email'] == 'newfarmer@test.com'
+        assert data['requires_otp'] is True
+        assert data['email'] == 'newfarmer@test.com'
+        assert 'token' not in data
+        user = User.objects.get(username='newfarmer@test.com')
+        assert user.is_active is False
+        assert FarmerRegistrationOTP.objects.filter(user=user).exists()
 
     def test_register_microfinance_success(self, api_client):
         payload = {
@@ -135,6 +140,75 @@ class TestLogin:
     def test_login_missing_fields_fails(self, api_client):
         response = api_client.post(LOGIN_URL, {}, format='json')
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_login_farmer_blocked_until_otp_verified(self, api_client):
+        user = User.objects.create_user(
+            username='pending@test.com',
+            email='pending@test.com',
+            password='StrongPass1!',
+            is_active=False,
+        )
+        UserProfile.objects.create(user=user, role='farmer')
+        response = api_client.post(LOGIN_URL, {'email': 'pending@test.com', 'password': 'StrongPass1!'}, format='json')
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert 'verify' in response.json().get('error', '').lower()
+
+
+@pytest.mark.django_db
+class TestFarmerRegistrationOtp:
+    def test_verify_registration_otp_success(self, api_client):
+        user = User.objects.create_user(
+            username='verifyme@test.com',
+            email='verifyme@test.com',
+            password='StrongPass1!',
+            is_active=False,
+        )
+        UserProfile.objects.create(user=user, role='farmer')
+        otp = FarmerRegistrationOTP.create_for_user(user)
+
+        response = api_client.post(
+            VERIFY_OTP_URL,
+            {'email': 'verifyme@test.com', 'otp': otp.code},
+            format='json',
+        )
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert 'token' in body
+        user.refresh_from_db()
+        assert user.is_active is True
+
+    def test_verify_registration_otp_invalid_fails(self, api_client):
+        user = User.objects.create_user(
+            username='badotp@test.com',
+            email='badotp@test.com',
+            password='StrongPass1!',
+            is_active=False,
+        )
+        UserProfile.objects.create(user=user, role='farmer')
+        FarmerRegistrationOTP.create_for_user(user)
+
+        response = api_client.post(
+            VERIFY_OTP_URL,
+            {'email': 'badotp@test.com', 'otp': '000000'},
+            format='json',
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_resend_registration_otp_replaces_old_code(self, api_client):
+        user = User.objects.create_user(
+            username='resend@test.com',
+            email='resend@test.com',
+            password='StrongPass1!',
+            is_active=False,
+        )
+        UserProfile.objects.create(user=user, role='farmer')
+        old = FarmerRegistrationOTP.create_for_user(user)
+
+        response = api_client.post(RESEND_OTP_URL, {'email': 'resend@test.com'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert FarmerRegistrationOTP.objects.filter(user=user).count() == 1
+        new = FarmerRegistrationOTP.objects.get(user=user)
+        assert new.code != old.code
 
 
 # ---------------------------------------------------------------------------

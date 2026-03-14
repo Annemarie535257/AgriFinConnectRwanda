@@ -95,6 +95,47 @@ class PasswordResetToken(models.Model):
             return None
 
 
+def _default_registration_otp_expiry():
+    return timezone.now() + timezone.timedelta(minutes=10)
+
+
+class FarmerRegistrationOTP(models.Model):
+    """One-time code for farmer account verification. Expires after 10 minutes."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='registration_otps',
+    )
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(default=_default_registration_otp_expiry)
+
+    class Meta:
+        db_table = 'api_farmerregistrationotp'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Registration OTP for {self.user.email or self.user.username} expires {self.expires_at}"
+
+    @classmethod
+    def create_for_user(cls, user):
+        """Create a new OTP for a user and invalidate previous OTPs."""
+        cls.objects.filter(user=user).delete()
+        code = f"{secrets.randbelow(10**6):06d}"
+        return cls.objects.create(user=user, code=code)
+
+    @classmethod
+    def verify_for_user(cls, user, code):
+        """Return True if OTP is valid for the user; consume OTP on success."""
+        now = timezone.now()
+        try:
+            otp = cls.objects.get(user=user, code=str(code).strip(), expires_at__gt=now)
+            otp.delete()  # one-time use
+            return True
+        except cls.DoesNotExist:
+            return False
+
+
 # ----- Loan workflow models (per system analysis ERD) -----
 
 class FarmerProfile(models.Model):

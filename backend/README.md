@@ -58,9 +58,29 @@ API base: **http://localhost:8000/api/**
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auth/register/` | Register (body: `email`, `password`, `role`: `farmer` \| `microfinance`, optional `name`) |
+| POST | `/api/auth/verify-registration-otp/` | Verify farmer registration OTP (body: `email`, `otp`) |
+| POST | `/api/auth/resend-registration-otp/` | Resend farmer OTP (body: `email`) |
 | POST | `/api/auth/login/` | Login (body: `email`, `password`). Returns `token` + `user` (id, email, role). |
 | POST | `/api/auth/forgot-password/` | Request password reset (body: `email`). Sends reset link to email. |
 | POST | `/api/auth/reset-password/` | Set new password (body: `token`, `new_password`). Token from email link. |
+
+### Real email delivery (OTP + password reset)
+
+By default in local development, Django uses the console email backend, so emails appear in terminal logs.
+To send real emails, configure SMTP environment variables:
+
+```bash
+DJANGO_EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=1
+EMAIL_HOST_USER=<your_email_username>
+EMAIL_HOST_PASSWORD=<your_smtp_password_or_app_password>
+DJANGO_FROM_EMAIL=<from_email>
+PASSWORD_RESET_FRONTEND_URL=http://localhost:3000
+```
+
+For Gmail, use an **App Password** (not your normal account password).
 
 **Create an admin user (backend):**
 

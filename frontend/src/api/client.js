@@ -110,11 +110,13 @@ export async function analyzeApplicationStatement(appId, opts = {}) {
   });
 }
 
-/** POST /.netlify/functions/chat — chatbot via HF Inference API (bypasses Render timeout) */
+/** POST /.netlify/functions/chat (prod) or /api/chat/ (dev) */
 export async function chat(message, language = 'en') {
-  // Route directly to the Netlify serverless function which calls HF Inference API.
-  // This avoids Render's 30 s free-tier timeout that fires before the model responds.
-  const url = '/.netlify/functions/chat';
+  // In production (Netlify), use the serverless function to avoid Render's 30 s timeout.
+  // In local dev, call the Django backend directly via Vite's /api proxy.
+  const url = import.meta.env.PROD
+    ? '/.netlify/functions/chat'
+    : '/api/chat/';
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -132,6 +134,22 @@ export async function register({ email, password, role, name }) {
   return request('/auth/register/', {
     method: 'POST',
     body: { email, password, role, name: name || '' },
+  });
+}
+
+/** POST /api/auth/verify-registration-otp — verify farmer registration OTP */
+export async function verifyRegistrationOtp({ email, otp }) {
+  return request('/auth/verify-registration-otp/', {
+    method: 'POST',
+    body: { email: (email || '').trim().toLowerCase(), otp: (otp || '').trim() },
+  });
+}
+
+/** POST /api/auth/resend-registration-otp — resend farmer registration OTP */
+export async function resendRegistrationOtp({ email }) {
+  return request('/auth/resend-registration-otp/', {
+    method: 'POST',
+    body: { email: (email || '').trim().toLowerCase() },
   });
 }
 

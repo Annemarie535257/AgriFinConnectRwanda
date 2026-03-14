@@ -121,7 +121,21 @@ CHATBOT_MODEL_DIR = PROJECT_ROOT / 'AI_Chatbot_model'
 CHATBOT_MODEL_HF_REPO = os.environ.get('CHATBOT_MODEL_HF_REPO', 'Annemarie535257/agrifinconnect-chatbot')
 
 # Email (for password reset). Console backend prints to terminal in dev.
-EMAIL_BACKEND = os.environ.get('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+_smtp_user = os.environ.get('EMAIL_HOST_USER', '').strip()
+_smtp_pass = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
+_default_email_backend = (
+    'django.core.mail.backends.smtp.EmailBackend'
+    if (_smtp_user and _smtp_pass)
+    else 'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_BACKEND = os.environ.get('DJANGO_EMAIL_BACKEND', _default_email_backend)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', '1').strip().lower() in ('1', 'true', 'yes')
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', '0').strip().lower() in ('1', 'true', 'yes')
+EMAIL_HOST_USER = _smtp_user
+EMAIL_HOST_PASSWORD = _smtp_pass
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '15'))
 DEFAULT_FROM_EMAIL = os.environ.get('DJANGO_FROM_EMAIL', 'noreply@agrifinconnect.rw')
 # Frontend URL for reset links (set in production)
 PASSWORD_RESET_FRONTEND_URL = os.environ.get('PASSWORD_RESET_FRONTEND_URL', 'http://localhost:3000')
