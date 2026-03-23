@@ -102,7 +102,7 @@ else:
         'http://localhost:3000',
         'http://127.0.0.1:3000',
         'https://agrifinconnectrwanda.netlify.app',  # Netlify production
-        'https://agrifinconnect.online/',  # Production
+        'https://agrifinconnect.online',  # Production
     ]
 CORS_ALLOW_CREDENTIALS = True
 
