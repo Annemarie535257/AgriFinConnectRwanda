@@ -1,19 +1,23 @@
 /**
  * API client for AgriFinConnect Rwanda backend.
- * Dev: Vite proxy /api. Production: VITE_API_URL or live Render API.
- * When running on a non-localhost host (e.g. Netlify), always use LIVE_API_BASE if VITE_API_URL is unset
- * so the deployed app reaches the backend even when the build env didn't set VITE_API_URL.
+ * Default: same-origin /api (frontend + backend on one server).
+ * Override with VITE_API_URL when deploying frontend/backend on different hosts.
  */
-const LIVE_API_BASE = 'https://agrifinconnectrwanda.onrender.com/api';
+const DEFAULT_API_BASE = '/api';
 const OFFLINE_QUEUE_KEY = 'agrifinconnect-offline-queue-v1';
 
+function normalizeApiBase(raw) {
+  const value = String(raw || '').trim().replace(/^['\"]|['\"]$/g, '').replace(/\/+$/, '');
+  if (!value) return '';
+  if (!/^https?:\/\//i.test(value) && !value.startsWith('/')) return '';
+  if (value.startsWith('/')) return value;
+  return /\/api$/i.test(value) ? value : `${value}/api`;
+}
+
 function getApiBase() {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  if (typeof window !== 'undefined') {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (!isLocal) return LIVE_API_BASE;
-  }
-  return import.meta.env.PROD ? LIVE_API_BASE : '/api';
+  const envApiBase = normalizeApiBase(import.meta.env.VITE_API_URL);
+  if (envApiBase) return envApiBase;
+  return DEFAULT_API_BASE;
 }
 const API_BASE = getApiBase();
 

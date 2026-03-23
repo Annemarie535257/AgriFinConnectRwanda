@@ -11,7 +11,7 @@ import './AdminDashboard.css';
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL ||
-  (import.meta.env.PROD ? 'https://agrifinconnectrwanda.onrender.com' : 'http://localhost:8080');
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080');
 
 const STATUS_BADGE = {
   pending: 'badge--pending',

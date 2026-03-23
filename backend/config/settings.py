@@ -21,7 +21,7 @@ ALLOWED_HOSTS = [
     _normalize_host(h)
     for h in os.environ.get(
         'DJANGO_ALLOWED_HOSTS',
-        'localhost,127.0.0.1,agrifinconnectrwanda.onrender.com,.onrender.com,agrifinconnect.online',
+        'localhost,127.0.0.1,agrifinconnect.online,www.agrifinconnect.online',
     ).split(',')
     if _normalize_host(h)
 ]
@@ -97,8 +97,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS: allow frontend origin. On Render, set env CORS_ALLOWED_ORIGINS to your Netlify URL(s), comma-separated
-# (e.g. https://agrifinconnectrwanda.netlify.app, https://yoursite.netlify.app).
+# CORS: allow same-server production domain and local dev origins.
+# For other deployments, set CORS_ALLOWED_ORIGINS as a comma-separated list.
 _cors_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
 if _cors_env:
     CORS_ALLOWED_ORIGINS = [
@@ -112,8 +112,8 @@ else:
         'http://127.0.0.1:5173',
         'http://localhost:3000',
         'http://127.0.0.1:3000',
-        'https://agrifinconnectrwanda.netlify.app',  # Netlify production
         'https://agrifinconnect.online',  # Production
+        'https://www.agrifinconnect.online',
     ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -130,8 +130,8 @@ else:
         'http://127.0.0.1:5173',
         'http://localhost:3000',
         'http://127.0.0.1:3000',
-        'https://agrifinconnectrwanda.netlify.app',
         'https://agrifinconnect.online',
+        'https://www.agrifinconnect.online',
     ]
 
 # Static files (WhiteNoise for production)
