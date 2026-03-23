@@ -10,13 +10,20 @@ PROJECT_ROOT = BASE_DIR.parent
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-change-in-production')
 DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
+def _normalize_host(value: str) -> str:
+    """Return a valid Django host entry from host or URL input."""
+    host = (value or '').strip().strip("'\"")
+    host = host.replace('https://', '').replace('http://', '')
+    host = host.split('/')[0].strip()
+    return host
+
 ALLOWED_HOSTS = [
-    h.strip()
+    _normalize_host(h)
     for h in os.environ.get(
         'DJANGO_ALLOWED_HOSTS',
-        'localhost,127.0.0.1,agrifinconnectrwanda.onrender.com,.onrender.com',
+        'localhost,127.0.0.1,agrifinconnectrwanda.onrender.com,.onrender.com,agrifinconnect.online',
     ).split(',')
-    if h.strip()
+    if _normalize_host(h)
 ]
 
 INSTALLED_APPS = [
@@ -94,7 +101,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # (e.g. https://agrifinconnectrwanda.netlify.app, https://yoursite.netlify.app).
 _cors_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
 if _cors_env:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(',') if o.strip()]
+    CORS_ALLOWED_ORIGINS = [
+        o.strip().strip("'\"")
+        for o in _cors_env.split(',')
+        if o.strip().strip("'\"")
+    ]
 else:
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:5173',
@@ -105,6 +116,23 @@ else:
         'https://agrifinconnect.online',  # Production
     ]
 CORS_ALLOW_CREDENTIALS = True
+
+_csrf_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
+if _csrf_env:
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip().strip("'\"")
+        for o in _csrf_env.split(',')
+        if o.strip().strip("'\"")
+    ]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://agrifinconnectrwanda.netlify.app',
+        'https://agrifinconnect.online',
+    ]
 
 # Static files (WhiteNoise for production)
 STATIC_ROOT = BASE_DIR / 'staticfiles'
