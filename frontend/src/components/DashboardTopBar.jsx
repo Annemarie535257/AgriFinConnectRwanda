@@ -22,7 +22,7 @@ export default function DashboardTopBar({ title, showSearch = true }) {
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               className="dashboard-topbar__lang-select"
-              aria-label="Select language"
+              aria-label={t('dashboard.selectLanguage') || 'Select language'}
             >
               <option value="en">{languageNames.en}</option>
               <option value="fr">{languageNames.fr}</option>
@@ -34,7 +34,7 @@ export default function DashboardTopBar({ title, showSearch = true }) {
               type="search"
               className="dashboard-topbar__search"
               placeholder={t('dashboard.search') || 'Search'}
-              aria-label="Search"
+              aria-label={t('dashboard.search') || 'Search'}
             />
           )}
       </div>

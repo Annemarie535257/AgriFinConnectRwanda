@@ -137,6 +137,24 @@ class TestLogin:
         response = api_client.post(LOGIN_URL, payload, format='json')
         assert response.status_code == status.HTTP_200_OK
 
+    def test_login_admin_by_email_when_username_differs(self, api_client):
+        user = User.objects.create_superuser(
+            username='admin',
+            email='admin@agrifinconnect.rw',
+            password='AdminPass1!',
+        )
+
+        response = api_client.post(
+            LOGIN_URL,
+            {'email': 'admin@agrifinconnect.rw', 'password': 'AdminPass1!'},
+            format='json',
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body['user']['id'] == user.id
+        assert body['user']['role'] == 'admin'
+
     def test_login_missing_fields_fails(self, api_client):
         response = api_client.post(LOGIN_URL, {}, format='json')
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -222,6 +240,22 @@ class TestPasswordReset:
         response = api_client.post(FORGOT_URL, {'email': 'farmer@test.com'}, format='json')
         assert response.status_code == status.HTTP_200_OK
         assert 'message' in response.json()
+
+    def test_forgot_password_admin_email_when_username_differs(self, api_client):
+        User.objects.create_superuser(
+            username='admin',
+            email='admin@agrifinconnect.rw',
+            password='AdminPass1!',
+        )
+
+        response = api_client.post(
+            FORGOT_URL,
+            {'email': 'admin@agrifinconnect.rw'},
+            format='json',
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert PasswordResetToken.objects.filter(user__email='admin@agrifinconnect.rw').exists()
 
     def test_forgot_password_unknown_email(self, api_client):
         """Unknown email still returns 200 to prevent enumeration."""

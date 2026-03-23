@@ -366,6 +366,13 @@ class LoanApplication(models.Model):
     farming_estimated_yield = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     farming_livestock = models.CharField(max_length=200, blank=True)
     farming_notes = models.TextField(blank=True)
+    # Farm records (employees, production, seeds, fertilizer)
+    farm_employees_count = models.PositiveIntegerField(default=0)
+    farm_employees_summary = models.TextField(blank=True)
+    production_records_count = models.PositiveIntegerField(default=0)
+    production_records_summary = models.TextField(blank=True)
+    seed_stock_count = models.PositiveIntegerField(default=0)
+    fertilizer_records_count = models.PositiveIntegerField(default=0)
     # AI outputs
     eligibility_approved = models.BooleanField(null=True, blank=True)
     eligibility_reason = models.TextField(blank=True)

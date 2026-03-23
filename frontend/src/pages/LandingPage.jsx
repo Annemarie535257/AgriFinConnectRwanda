@@ -9,6 +9,8 @@ import BackToTop from '../components/BackToTop';
 import FloatingChatbot from '../components/FloatingChatbot';
 import '../App.css';
 
+
+
 export default function LandingPage() {
   return (
     <div className="app landing-layout">

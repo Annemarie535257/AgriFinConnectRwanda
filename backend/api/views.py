@@ -19,8 +19,15 @@ from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
 
-from .explanations import eligibility_reason, eligibility_description, recommend_amount_explanation, risk_score_description
+from .explanations import (
+    application_rejection_reason,
+    eligibility_reason,
+    eligibility_description,
+    recommend_amount_explanation,
+    risk_score_description,
+)
 from .ml_service import predict_eligibility, predict_risk, recommend_amount as recommend_loan_amount
+from .sms_service import send_sms
 from .models import (
     GetStartedEvent,
     FarmerRegistrationOTP,
@@ -61,6 +68,67 @@ def _get_payload(request):
         return json.loads(request.body) if request.body else {}
     except (json.JSONDecodeError, TypeError):
         return {}
+
+
+def _find_user_by_login_identifier(identifier):
+    """Find a user by email first, then fall back to username for legacy accounts."""
+    normalized = (identifier or '').strip().lower()
+    if not normalized:
+        return None
+
+    user = User.objects.filter(email__iexact=normalized).first()
+    if user is not None:
+        return user
+
+    return User.objects.filter(username__iexact=normalized).first()
+
+
+def _farmer_phone_for_application(app):
+    try:
+        profile = getattr(app.user, 'farmer_profile', None)
+    except Exception:
+        profile = None
+    return (getattr(profile, 'phone', '') or '').strip()
+
+
+def _normalize_location_value(value, max_length=80):
+    return str(value or '').strip()[:max_length]
+
+
+def _parse_farmer_location(location):
+    raw = str(location or '').strip()
+    parts = {'district': '', 'sector': '', 'cell': '', 'village': ''}
+    if not raw:
+        return parts
+
+    chunks = [chunk.strip() for chunk in raw.split(',') if chunk.strip()]
+    if len(chunks) >= 4:
+        parts['district'] = chunks[0][:80]
+        parts['sector'] = chunks[1][:80]
+        parts['cell'] = chunks[2][:80]
+        parts['village'] = ', '.join(chunks[3:])[:80]
+        return parts
+
+    # Backward-compatible fallback for old single-value locations.
+    parts['district'] = raw[:80]
+    return parts
+
+
+def _format_farmer_location(district='', sector='', cell='', village=''):
+    ordered = [
+        _normalize_location_value(district),
+        _normalize_location_value(sector),
+        _normalize_location_value(cell),
+        _normalize_location_value(village),
+    ]
+    return ', '.join([value for value in ordered if value])[:200]
+
+
+def _notify_farmer_sms(app, message, context='application_update'):
+    phone = _farmer_phone_for_application(app)
+    if not phone:
+        return {'sent': False, 'reason': 'no_phone_on_profile'}
+    return send_sms(phone, message, context=context)
 
 
 @swagger_auto_schema(method='post', operation_description='Model 1: Loan eligibility (approval/denial) prediction. POST JSON with features.', request_body=_ml_request_body, responses={200: _eligibility_response, 400: 'Error', 503: 'Models not loaded'}, tags=['ML Models'])
@@ -209,6 +277,33 @@ def fraud_detect(request):
         return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(
+    method='post',
+    operation_description='Send SMS fallback notification (provider-backed or log fallback). Requires authentication.',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['to_phone', 'message'],
+        properties={
+            'to_phone': openapi.Schema(type=openapi.TYPE_STRING),
+            'message': openapi.Schema(type=openapi.TYPE_STRING),
+            'context': openapi.Schema(type=openapi.TYPE_STRING),
+        },
+    ),
+    tags=['Fallback'],
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def fallback_sms(request):
+    payload = _get_payload(request)
+    to_phone = str(payload.get('to_phone') or '').strip()
+    message = str(payload.get('message') or '').strip()
+    context = str(payload.get('context') or 'manual_fallback').strip()
+    if not to_phone or not message:
+        return Response({'error': 'to_phone and message are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    result = send_sms(to_phone, message, context=context)
+    return Response({'success': bool(result.get('sent')), 'delivery': result}, status=status.HTTP_202_ACCEPTED)
 
 
 @api_view(['POST'])
@@ -517,11 +612,7 @@ def auth_login(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     email = (serializer.validated_data['email'] or '').strip()
     password = serializer.validated_data['password']
-    # Look up by username (we store email as username) case-insensitively, then verify password
-    try:
-        user = User.objects.get(username__iexact=email)
-    except User.DoesNotExist:
-        user = None
+    user = _find_user_by_login_identifier(email)
     if user is None or not user.check_password(password):
         return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
     if not user.is_active:
@@ -551,9 +642,8 @@ def auth_verify_registration_otp(request):
     otp = (payload.get('otp') or '').strip()
     if not email or not otp:
         return Response({'error': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        user = User.objects.get(username__iexact=email)
-    except User.DoesNotExist:
+    user = _find_user_by_login_identifier(email)
+    if user is None:
         return Response({'error': 'Invalid OTP or email.'}, status=status.HTTP_400_BAD_REQUEST)
     if _user_role(user) != 'farmer':
         return Response({'error': 'OTP verification is only required for farmer registration.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -601,9 +691,8 @@ def auth_resend_registration_otp(request):
     email = (payload.get('email') or '').strip().lower()
     if not email:
         return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        user = User.objects.get(username__iexact=email)
-    except User.DoesNotExist:
+    user = _find_user_by_login_identifier(email)
+    if user is None:
         return Response({'message': 'If a pending farmer account exists, a new OTP has been sent.'})
 
     if _user_role(user) != 'farmer' or user.is_active:
@@ -653,9 +742,8 @@ def auth_forgot_password(request):
     email = (payload.get('email') or '').strip().lower()
     if not email:
         return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        user = User.objects.get(username__iexact=email)
-    except User.DoesNotExist:
+    user = _find_user_by_login_identifier(email)
+    if user is None:
         return Response({'message': 'If an account exists with this email, a reset link has been sent.'})
     prt = PasswordResetToken.create_for_user(user)
     frontend_url = getattr(settings, 'PASSWORD_RESET_FRONTEND_URL', 'http://localhost:3000')
@@ -904,12 +992,17 @@ def farmer_profile(request):
                 photo_url = request.build_absolute_uri(profile_obj.profile_photo.url)
             except Exception:
                 photo_url = profile_obj.profile_photo.url
+        location_parts = _parse_farmer_location(profile_obj.location)
         return {
             'id': profile_obj.id,
             'user_id': request.user.id,
             'full_name': request.user.first_name or request.user.username.split('@')[0],
             'email': request.user.email or request.user.username,
             'location': profile_obj.location,
+            'district': location_parts['district'],
+            'sector': location_parts['sector'],
+            'cell': location_parts['cell'],
+            'village': location_parts['village'],
             'phone': profile_obj.phone,
             'cooperative_name': profile_obj.cooperative_name,
             'gender': profile_obj.gender,
@@ -926,7 +1019,16 @@ def farmer_profile(request):
 
     # PATCH
     data = request.data if hasattr(request, 'data') and request.data is not None else _get_payload(request)
-    if 'location' in data:
+    has_structured_location = any(field in data for field in ('district', 'sector', 'cell', 'village'))
+    if has_structured_location:
+        current_parts = _parse_farmer_location(profile.location)
+        profile.location = _format_farmer_location(
+            data.get('district', current_parts['district']) if hasattr(data, 'get') else current_parts['district'],
+            data.get('sector', current_parts['sector']) if hasattr(data, 'get') else current_parts['sector'],
+            data.get('cell', current_parts['cell']) if hasattr(data, 'get') else current_parts['cell'],
+            data.get('village', current_parts['village']) if hasattr(data, 'get') else current_parts['village'],
+        )
+    elif 'location' in data:
         profile.location = str(data['location'])[:200]
     if 'phone' in data:
         profile.phone = str(data['phone'])[:20]
@@ -973,6 +1075,38 @@ REQUIRED_DOCUMENTS_BASE = [
     {'document_type': 'proof_of_address', 'required': False},
     {'document_type': 'spouse_id', 'required': False},
 ]
+
+
+def _required_document_types_for_application(app):
+    required = {doc['document_type'] for doc in REQUIRED_DOCUMENTS_BASE if doc['required']}
+    if str(app.marital_status or '').strip().lower() == 'married':
+        required.add('spouse_id')
+    return required
+
+
+def _document_label(document_type):
+    return dict(DOCUMENT_TYPE_CHOICES).get(document_type, document_type)
+
+
+def _missing_required_document_labels(app):
+    uploaded = set(app.documents.values_list('document_type', flat=True))
+    missing = sorted(_required_document_types_for_application(app) - uploaded)
+    return [_document_label(doc_type) for doc_type in missing]
+
+
+def _build_application_rejection_reason(app, officer_note=''):
+    profile_reason = ''
+    if app.eligibility_approved is False:
+        profile_reason = (app.eligibility_reason or '').strip()
+        if not profile_reason:
+            profile_reason = eligibility_reason(_application_to_ml_payload(app), False, 'en')
+
+    return application_rejection_reason(
+        profile_reason=profile_reason,
+        missing_documents=_missing_required_document_labels(app),
+        document_issues=officer_note,
+        language='en',
+    )
 
 # Per-language labels and descriptions
 REQUIRED_DOCUMENTS_I18N = {
@@ -1154,6 +1288,12 @@ def farmer_applications(request):
             farming_estimated_yield=_decimal(data.get('farming_estimated_yield')),
             farming_livestock=_str(data.get('farming_livestock'), 200),
             farming_notes=_str(data.get('farming_notes'), 2000),
+            farm_employees_count=int(data.get('farm_employees_count', 0) or 0),
+            farm_employees_summary=_str(data.get('farm_employees_summary'), 2000),
+            production_records_count=int(data.get('production_records_count', 0) or 0),
+            production_records_summary=_str(data.get('production_records_summary'), 2000),
+            seed_stock_count=int(data.get('seed_stock_count', 0) or 0),
+            fertilizer_records_count=int(data.get('fertilizer_records_count', 0) or 0),
         )
         payload = _application_to_ml_payload(app)
         app_lang = (data.get('language') or data.get('lang') or 'en')
@@ -1191,6 +1331,7 @@ def farmer_applications(request):
             'status': app.status,
             'eligibility_approved': app.eligibility_approved,
             'eligibility_reason': app.eligibility_reason,
+            'rejection_reason': app.rejection_reason or None,
             'risk_score': app.risk_score,
             'recommended_amount': float(app.recommended_amount) if app.recommended_amount else None,
             'created_at': app.created_at.isoformat(),
@@ -1236,6 +1377,8 @@ def farmer_applications(request):
             'loan_duration_months': a.loan_duration_months,
             'status': a.status,
             'eligibility_approved': a.eligibility_approved,
+            'eligibility_reason': a.eligibility_reason or '',
+            'rejection_reason': a.rejection_reason or None,
             'risk_score': a.risk_score,
             'recommended_amount': float(a.recommended_amount) if a.recommended_amount else None,
             'created_at': a.created_at.isoformat(),
@@ -1477,6 +1620,7 @@ def farmer_application_package(request, pk):
         "",
         f"Eligibility approved: {app.eligibility_approved}",
         f"Eligibility reason: {app.eligibility_reason or '-'}",
+        f"Final rejection reason: {app.rejection_reason or '-'}",
         f"Risk score: {app.risk_score if app.risk_score is not None else '-'}",
         f"Recommended amount (RWF): {float(app.recommended_amount):,.2f}" if app.recommended_amount is not None else "Recommended amount (RWF): -",
         "",
@@ -1585,6 +1729,7 @@ def mfi_applications(request):
         ]
         created_short = a.created_at.strftime('%Y%m%d')
         farmer_label = _safe_filename_part(getattr(a.user, 'first_name', '') or a.user.username.split('@')[0], fallback='farmer')
+        location_parts = _parse_farmer_location(getattr(farmer_profile, 'location', '') if farmer_profile else '')
         data.append({
             'id': a.id,
             'user_id': a.user_id,
@@ -1592,6 +1737,10 @@ def mfi_applications(request):
             'user_name': getattr(a.user, 'first_name', '') or '',
             'farmer_profile': {
                 'location': getattr(farmer_profile, 'location', '') if farmer_profile else '',
+            'district': location_parts['district'],
+            'sector': location_parts['sector'],
+            'cell': location_parts['cell'],
+            'village': location_parts['village'],
                 'phone': getattr(farmer_profile, 'phone', '') if farmer_profile else '',
                 'cooperative_name': getattr(farmer_profile, 'cooperative_name', '') if farmer_profile else '',
                 'gender': getattr(farmer_profile, 'gender', '') if farmer_profile else '',
@@ -1605,6 +1754,7 @@ def mfi_applications(request):
             'credit_score': a.credit_score,
             'eligibility_approved': a.eligibility_approved,
             'eligibility_reason': a.eligibility_reason,
+            'rejection_reason': a.rejection_reason or None,
             'risk_score': a.risk_score,
             'recommended_amount': float(a.recommended_amount) if a.recommended_amount else None,
             'status': a.status,
@@ -1659,6 +1809,7 @@ def mfi_application_package(request, pk):
         "",
         f"Eligibility approved: {app.eligibility_approved}",
         f"Eligibility reason: {app.eligibility_reason or '-'}",
+        f"Final rejection reason: {app.rejection_reason or '-'}",
         f"Risk score: {app.risk_score if app.risk_score is not None else '-'}",
         f"Recommended amount (RWF): {float(app.recommended_amount):,.2f}" if app.recommended_amount is not None else "Recommended amount (RWF): -",
         "",
@@ -1795,11 +1946,17 @@ def mfi_update_application_status(request, pk):
     elif new_status == 'rejected':
         app.reviewed_by = request.user
         app.reviewed_at = timezone.now()
-        app.rejection_reason = note[:500] if note else 'Rejected by MFI'
+        app.rejection_reason = _build_application_rejection_reason(app, note)
         ApplicationStatusUpdate.objects.create(
             application=app, status='rejected', note=app.rejection_reason, updated_by=request.user,
         )
     else:
+        if new_status == 'documents_requested' and not note:
+            note = application_rejection_reason(
+                missing_documents=_missing_required_document_labels(app),
+                document_issues='Please correct and re-upload the documents that do not match the application details.',
+                language='en',
+            )
         ApplicationStatusUpdate.objects.create(
             application=app, status=new_status, note=note, updated_by=request.user,
         )
@@ -1811,6 +1968,17 @@ def mfi_update_application_status(request, pk):
                 message=note,
             )
     app.save()
+
+    if new_status in ('under_review', 'documents_requested', 'approved', 'rejected'):
+        sms_text = (
+            f'AgriFinConnect: Your application #{app.id} status is now "{new_status.replace("_", " ")}".'
+        )
+        if new_status == 'documents_requested' and note:
+            sms_text += f' Note: {note[:220]}'
+        if new_status == 'rejected' and app.rejection_reason:
+            sms_text += f' Reason: {app.rejection_reason[:220]}'
+        _notify_farmer_sms(app, sms_text, context='mfi_status_update')
+
     history = _application_status_history(app)
     return Response({
         'id': app.id,
@@ -1841,6 +2009,11 @@ def mfi_send_application_message(request, pk):
         sender=request.user,
         recipient=app.user,
         message=message,
+    )
+    _notify_farmer_sms(
+        app,
+        f'AgriFinConnect message on application #{app.id}: {message[:240]}',
+        context='mfi_message',
     )
     return Response({
         'id': msg.id,
@@ -1899,11 +2072,16 @@ def mfi_review_application(request, pk):
             Repayment.objects.create(loan=loan, amount=Decimal(str(round(monthly, 2))), due_date=_date(y, m, day))
     else:
         app.status = 'rejected'
-        app.rejection_reason = str(data.get('rejection_reason', ''))[:500]
+        officer_note = str(data.get('rejection_reason', '') or '').strip()[:1000]
+        app.rejection_reason = _build_application_rejection_reason(app, officer_note)
         ApplicationStatusUpdate.objects.create(
             application=app, status='rejected', note=app.rejection_reason, updated_by=request.user,
         )
     app.save()
+    review_sms = f'AgriFinConnect: Your application #{app.id} was {app.status}.'
+    if app.status == 'rejected' and app.rejection_reason:
+        review_sms += f' Reason: {app.rejection_reason[:220]}'
+    _notify_farmer_sms(app, review_sms, context='mfi_review')
     return Response({
         'id': app.id,
         'status': app.status,
@@ -2114,6 +2292,10 @@ def admin_update_application_status(request, application_id):
     app.reviewed_by = request.user
     app.reviewed_at = timezone.now()
     app.save(update_fields=['status', 'rejection_reason', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    admin_sms = f'AgriFinConnect: Your application #{app.id} status was updated to "{app.status.replace("_", " ")}" by admin.'
+    if app.status == 'rejected' and app.rejection_reason:
+        admin_sms += f' Reason: {str(app.rejection_reason)[:220]}'
+    _notify_farmer_sms(app, admin_sms, context='admin_status_update')
     return Response({'success': True, 'id': app.id, 'status': app.status})
 
 

@@ -115,7 +115,7 @@ export default function DashboardLayout() {
           </Link>
           <span className="dashboard-sidebar__brand-name">AgriFinConnect</span>
         </div>
-        <nav className="dashboard-sidebar__nav" aria-label="Dashboard navigation">
+        <nav className="dashboard-sidebar__nav" aria-label={t('dashboard.navigation') || 'Dashboard navigation'}>
           {links.map(({ path, key, Icon }) => (
             <Link
               key={path}
@@ -157,7 +157,7 @@ export default function DashboardLayout() {
           type="button"
           className="dashboard-sidebar__toggle"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={sidebarCollapsed ? (t('dashboard.expandSidebar') || 'Expand sidebar') : (t('dashboard.collapseSidebar') || 'Collapse sidebar')}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d={sidebarCollapsed ? 'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z' : 'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z'} />

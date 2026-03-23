@@ -140,6 +140,13 @@ DEFAULT_FROM_EMAIL = os.environ.get('DJANGO_FROM_EMAIL', 'noreply@agrifinconnect
 # Frontend URL for reset links (set in production)
 PASSWORD_RESET_FRONTEND_URL = os.environ.get('PASSWORD_RESET_FRONTEND_URL', 'http://localhost:3000')
 
+# SMS fallback configuration
+# SMS_PROVIDER: 'log' (default) or 'twilio'
+SMS_PROVIDER = os.environ.get('SMS_PROVIDER', 'log').strip().lower()
+SMS_FROM_NUMBER = os.environ.get('SMS_FROM_NUMBER', '').strip()
+SMS_TWILIO_ACCOUNT_SID = os.environ.get('SMS_TWILIO_ACCOUNT_SID', '').strip()
+SMS_TWILIO_AUTH_TOKEN = os.environ.get('SMS_TWILIO_AUTH_TOKEN', '').strip()
+
 # Media files (loan application documents)
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'

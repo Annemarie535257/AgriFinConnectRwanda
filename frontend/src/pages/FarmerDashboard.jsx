@@ -28,6 +28,8 @@ const EDUCATION_OPTIONS = ['High School', 'Associate', 'Bachelor', 'Master'];
 const MARITAL_OPTIONS = ['Single', 'Married', 'Divorced'];
 const PURPOSE_OPTIONS = ['Farming', 'Education', 'Home', 'Debt Consolidation', 'Other'];
 
+
+
 // The ML models were trained on USD-scale data. All RWF monetary values
 // must be divided by this factor before being sent to the model endpoints.
 const RWF_TO_USD = 1350;
@@ -104,6 +106,30 @@ function profileNameFromUser(user) {
   );
 }
 
+function parseLocationParts(location) {
+  const raw = String(location || '').trim();
+  if (!raw) {
+    return { district: '', sector: '', cell: '', village: '' };
+  }
+  const chunks = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  if (chunks.length >= 4) {
+    return {
+      district: chunks[0] || '',
+      sector: chunks[1] || '',
+      cell: chunks[2] || '',
+      village: chunks.slice(3).join(', ') || '',
+    };
+  }
+  return { district: raw, sector: '', cell: '', village: '' };
+}
+
+function buildLocationString(parts) {
+  return [parts.district, parts.sector, parts.cell, parts.village]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
 export default function FarmerDashboard() {
   const { t, language } = useLanguage();
   const [searchParams] = useSearchParams();
@@ -120,9 +146,11 @@ export default function FarmerDashboard() {
   const [profile, setProfile] = useState(null);
   const [profileForm, setProfileForm] = useState({
     full_name: '',
-    location: '',
+    district: '',
+    sector: '',
+    cell: '',
+    village: '',
     phone: '',
-    cooperative_name: '',
     gender: '',
     about: '',
   });
@@ -267,7 +295,7 @@ export default function FarmerDashboard() {
       if (repayRes?.repayments) setRepayments(repayRes.repayments);
       if (repayRes?.loans) setRepaymentLoans(repayRes.loans);
     } catch (err) {
-      setError(err.body?.error || err.message || 'Failed to load data');
+      setError(err.body?.error || err.message || t('farmer.errorLoadData') || 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -278,11 +306,14 @@ export default function FarmerDashboard() {
   }, []);
 
   useEffect(() => {
+    const parsedLocation = parseLocationParts(profile?.location || '');
     setProfileForm({
       full_name: profile?.full_name || profileNameFromUser(user) || 'Farmer',
-      location: profile?.location || '',
+      district: profile?.district || parsedLocation.district,
+      sector: profile?.sector || parsedLocation.sector,
+      cell: profile?.cell || parsedLocation.cell,
+      village: profile?.village || parsedLocation.village,
       phone: profile?.phone || '',
-      cooperative_name: profile?.cooperative_name || '',
       gender: profile?.gender || '',
       about: profile?.about || '',
     });
@@ -295,6 +326,10 @@ export default function FarmerDashboard() {
       .then((res) => setRequiredDocuments(res.documents || []))
       .catch(() => setRequiredDocuments([]));
   }, [language]);
+
+  useEffect(() => {
+    setModelResults({ eligibility: null, risk: null, recommend: null });
+  }, [form, language]);
 
   const persistFarmEmployees = (next) => {
     setFarmEmployees(next);
@@ -522,6 +557,21 @@ export default function FarmerDashboard() {
         else if (form.farming_yield_unit === 'sacks25') submittedForm.farming_estimated_yield = rawY * 25;
         else submittedForm.farming_estimated_yield = rawY;
       }
+
+      // Include farm employees and production data summary
+      submittedForm.farm_employees_count = farmEmployees.length;
+      submittedForm.farm_employees_summary = farmEmployees.length > 0 
+        ? farmEmployees.map(e => `${e.full_name} (${e.role || 'Staff'})`).join('; ')
+        : '';
+      
+      submittedForm.production_records_count = productionRecords.length;
+      submittedForm.production_records_summary = productionRecords.length > 0
+        ? productionRecords.map(p => `${p.crop} - ${parseFloat(p.harvested_quantity) || 0} ${p.harvested_unit || 'kg'}`).join('; ')
+        : '';
+      
+      submittedForm.seed_stock_count = seedStock.length;
+      submittedForm.fertilizer_records_count = fertilizerRecords.length;
+
       const res = await submitFarmerApplication(submittedForm);
       const appId = res?.id;
       if (appId && typeof appId === 'number') {
@@ -568,18 +618,29 @@ export default function FarmerDashboard() {
 
   const handleCheckEligibility = async () => {
     setModelLoading('eligibility');
-    setModelResults((r) => ({ ...r, eligibility: null }));
+    setModelResults({ eligibility: null, risk: null, recommend: null });
     try {
       const data = await predictEligibility(formToMlPayload(form), language);
-      setModelResults((r) => ({ ...r, eligibility: data }));
+      setModelResults({
+        eligibility: data,
+        risk: null,
+        recommend: null,
+      });
     } catch (err) {
-      setModelResults((r) => ({ ...r, eligibility: { error: err.body?.error || err.message || 'Model unavailable' } }));
+      setModelResults({
+        eligibility: { error: err.body?.error || err.message || 'Model unavailable' },
+        risk: null,
+        recommend: null,
+      });
     } finally {
       setModelLoading(null);
     }
   };
 
   const handleCheckRisk = async () => {
+    if (modelResults.eligibility?.approved !== false) {
+      return;
+    }
     setModelLoading('risk');
     setModelResults((r) => ({ ...r, risk: null }));
     try {
@@ -593,6 +654,9 @@ export default function FarmerDashboard() {
   };
 
   const handleGetRecommendation = async () => {
+    if (modelResults.eligibility?.approved !== false) {
+      return;
+    }
     setModelLoading('recommend');
     setModelResults((r) => ({ ...r, recommend: null }));
     try {
@@ -620,10 +684,14 @@ export default function FarmerDashboard() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     const data = new FormData();
+    const combinedLocation = buildLocationString(profileForm);
     data.append('full_name', profileForm.full_name || '');
-    data.append('location', profileForm.location || '');
+    data.append('district', profileForm.district || '');
+    data.append('sector', profileForm.sector || '');
+    data.append('cell', profileForm.cell || '');
+    data.append('village', profileForm.village || '');
+    data.append('location', combinedLocation);
     data.append('phone', profileForm.phone || '');
-    data.append('cooperative_name', profileForm.cooperative_name || '');
     data.append('gender', profileForm.gender || '');
     data.append('about', profileForm.about || '');
     if (profilePhotoFile) {
@@ -692,6 +760,9 @@ export default function FarmerDashboard() {
 
   const pendingCount = applications.filter((a) => a.status === 'pending').length;
   const approvedCount = applications.filter((a) => a.status === 'approved').length;
+  const eligibilityApproved = modelResults.eligibility?.approved === true;
+  const eligibilityRejected = modelResults.eligibility?.approved === false;
+  const canRunRiskAndRecommendation = eligibilityRejected;
 
   return (
     <div className="dashboard-page farmer-dashboard">
@@ -868,10 +939,10 @@ export default function FarmerDashboard() {
                       value={form.farming_land_size_unit}
                       onChange={(e) => setForm({ ...form, farming_land_size_unit: e.target.value })}
                     >
-                      <option value="ha">hectares (ha)</option>
-                      <option value="acres">acres</option>
-                      <option value="are">ares</option>
-                      <option value="m2">m²</option>
+                      <option value="ha">{t('farmer.unitHectares') || 'hectares (ha)'}</option>
+                      <option value="acres">{t('farmer.unitAcres') || 'acres'}</option>
+                      <option value="are">{t('farmer.unitAres') || 'ares'}</option>
+                      <option value="m2">{t('farmer.unitSquareMeters') || 'm²'}</option>
                     </select>
                   </div>
                 </label>
@@ -901,11 +972,11 @@ export default function FarmerDashboard() {
                       value={form.farming_yield_unit}
                       onChange={(e) => setForm({ ...form, farming_yield_unit: e.target.value })}
                     >
-                      <option value="kg">kg</option>
-                      <option value="tonnes">tonnes</option>
-                      <option value="bags50">bags (50 kg)</option>
-                      <option value="sacks25">sacks (25 kg)</option>
-                      <option value="rwf">RWF (value)</option>
+                      <option value="kg">{t('farmer.unitKg') || 'kg'}</option>
+                      <option value="tonnes">{t('farmer.unitTonnes') || 'tonnes'}</option>
+                      <option value="bags50">{t('farmer.unitBags50') || 'bags (50 kg)'}</option>
+                      <option value="sacks25">{t('farmer.unitSacks25') || 'sacks (25 kg)'}</option>
+                      <option value="rwf">{t('farmer.unitRwfValue') || 'RWF (value)'}</option>
                     </select>
                   </div>
                 </label>
@@ -924,7 +995,7 @@ export default function FarmerDashboard() {
                   <span>{t('farmer.farmingNotes') || 'Other farming notes'}</span>
                   <textarea
                     rows={3}
-                    placeholder={t('farmer.farmingNotesPlaceholder') || 'Any other details about your farm, cooperative, or how you will use the loan'}
+                    placeholder={t('farmer.farmingNotesPlaceholder') || 'Any other details about your farm or how you will use the loan'}
                     value={form.farming_notes}
                     onChange={(e) => setForm({ ...form, farming_notes: e.target.value })}
                   />
@@ -978,6 +1049,13 @@ export default function FarmerDashboard() {
               <p className="farmer-dashboard__model-hint">
                 {t('farmer.modelPreviewHint') || 'Check eligibility, risk score, and recommended amount before submitting your application.'}
               </p>
+              <p className="farmer-dashboard__model-hint">
+                {eligibilityApproved
+                  ? (t('farmer.modelPreviewApprovedLockHint') || 'Eligibility is approved, so risk score and recommended amount are disabled for this application preview.')
+                  : (eligibilityRejected
+                    ? (t('farmer.modelPreviewRejectedUnlockHint') || 'Eligibility was rejected, so you can now check the risk score and recommended amount.')
+                    : (t('farmer.modelPreviewOrderHint') || 'Check eligibility first. Risk score and recommended amount are only available when eligibility is rejected.'))}
+              </p>
               <div className="farmer-dashboard__model-buttons">
                 <button
                   type="button"
@@ -991,7 +1069,7 @@ export default function FarmerDashboard() {
                   type="button"
                   className="farmer-dashboard__model-btn"
                   onClick={handleCheckRisk}
-                  disabled={loading || !!modelLoading}
+                  disabled={loading || !!modelLoading || !canRunRiskAndRecommendation}
                 >
                   {modelLoading === 'risk' ? (t('card2.assessing') || 'Assessing…') : t('card2.submit') || 'Get risk score'}
                 </button>
@@ -999,7 +1077,7 @@ export default function FarmerDashboard() {
                   type="button"
                   className="farmer-dashboard__model-btn"
                   onClick={handleGetRecommendation}
-                  disabled={loading || !!modelLoading}
+                  disabled={loading || !!modelLoading || !canRunRiskAndRecommendation}
                 >
                   {modelLoading === 'recommend' ? (t('getStarted.submitting') || 'Loading…') : (t('card3.submit') || 'Get recommended amount')}
                 </button>
@@ -1104,18 +1182,28 @@ export default function FarmerDashboard() {
                 return (
                   <div key={app.id} className="farmer-dashboard__card farmer-dashboard__card--application">
                     <div className="farmer-dashboard__card-row">
-                      <strong>Application #{app.id}</strong>
+                      <strong>{t('farmer.applicationLabel') || 'Application'} #{app.id}</strong>
                       <span className={`farmer-dashboard__status farmer-dashboard__status--${app.status}`}>{statusText}</span>
                     </div>
-                    <p className="farmer-dashboard__card-meta">Amount: RWF {Number(app.loan_amount_requested).toLocaleString()} · {app.loan_duration_months} months</p>
+                    <p className="farmer-dashboard__card-meta">{t('farmer.amountLabel') || 'Amount'}: RWF {Number(app.loan_amount_requested).toLocaleString()} · {app.loan_duration_months} {t('farmer.months') || 'months'}</p>
                     {app.eligibility_approved != null && (
-                      <p>Eligibility: {app.eligibility_approved ? t('card1.approved') : t('card1.denied')}</p>
+                      <p>{t('farmer.eligibilityLabel') || 'Eligibility'}: {app.eligibility_approved ? t('card1.approved') : t('card1.denied')}</p>
                     )}
-                    {app.risk_score != null && <p>Risk score: {app.risk_score?.toFixed(2)}</p>}
+                    {app.eligibility_reason && (
+                      <p className="farmer-dashboard__status-summary-text">
+                        {t('farmer.aiReasonLabel') || 'AI assessment'}: {app.eligibility_reason}
+                      </p>
+                    )}
+                    {app.rejection_reason && (
+                      <p className="farmer-dashboard__status-summary-text">
+                        {t('farmer.finalRejectionReasonLabel') || 'Final review reason'}: {app.rejection_reason}
+                      </p>
+                    )}
+                    {app.risk_score != null && <p>{t('farmer.riskScoreLabel') || 'Risk score'}: {app.risk_score?.toFixed(2)}</p>}
                     {app.recommended_amount != null && (
-                      <p>Recommended: RWF {Number(app.recommended_amount).toLocaleString()}</p>
+                      <p>{t('farmer.recommendedLabel') || 'Recommended'}: RWF {Number(app.recommended_amount).toLocaleString()}</p>
                     )}
-                    <p className="farmer-dashboard__date">Submitted: {new Date(app.created_at).toLocaleDateString()}</p>
+                    <p className="farmer-dashboard__date">{t('farmer.submittedLabel') || 'Submitted'}: {new Date(app.created_at).toLocaleDateString()}</p>
                     {(app.farming_crops_or_activity || app.farming_land_size_hectares || app.farming_livestock) && (
                       <p className="farmer-dashboard__card-farming">
                         {t('farmer.farmingSummary') || 'Farming'}: {[app.farming_crops_or_activity, app.farming_land_size_hectares != null ? `${app.farming_land_size_hectares} ha` : null, app.farming_livestock].filter(Boolean).join(' · ')}
@@ -1200,9 +1288,9 @@ export default function FarmerDashboard() {
             <div className="farmer-dashboard__list">
               {loans.map((loan) => (
                 <div key={loan.id} className="farmer-dashboard__card">
-                  <p><strong>Loan #{loan.id}</strong></p>
-                  <p>Amount: RWF {Number(loan.amount).toLocaleString()}</p>
-                  <p>Duration: {loan.duration_months} months · Monthly: RWF {Number(loan.monthly_payment).toLocaleString()}</p>
+                  <p><strong>{t('farmer.loanLabel') || 'Loan'} #{loan.id}</strong></p>
+                  <p>{t('farmer.amountLabel') || 'Amount'}: RWF {Number(loan.amount).toLocaleString()}</p>
+                  <p>{t('farmer.durationLabel') || 'Duration'}: {loan.duration_months} {t('farmer.months') || 'months'} · {t('farmer.monthlyLabel') || 'Monthly'}: RWF {Number(loan.monthly_payment).toLocaleString()}</p>
                   <p className="farmer-dashboard__date">{new Date(loan.created_at).toLocaleDateString()}</p>
                 </div>
               ))}
@@ -1225,15 +1313,15 @@ export default function FarmerDashboard() {
                   <div className="repay-loan-header">
                     <div className="repay-loan-summary">
                       <span className="repay-loan-title">Loan #{loan.loan_id}</span>
-                      <span className="repay-loan-amount">RWF {Number(loan.total_amount).toLocaleString()} total</span>
-                      <span className="repay-loan-monthly">RWF {Number(loan.monthly_payment).toLocaleString()} / month</span>
-                      <span className="repay-loan-duration">{loan.duration_months} months &nbsp;·&nbsp; {(Number(loan.interest_rate) * 100).toFixed(1)}% interest</span>
+                      <span className="repay-loan-amount">RWF {Number(loan.total_amount).toLocaleString()} {t('farmer.totalLabel') || 'total'}</span>
+                      <span className="repay-loan-monthly">RWF {Number(loan.monthly_payment).toLocaleString()} / {t('farmer.monthLabel') || 'month'}</span>
+                      <span className="repay-loan-duration">{loan.duration_months} {t('farmer.months') || 'months'} &nbsp;·&nbsp; {(Number(loan.interest_rate) * 100).toFixed(1)}% {t('farmer.interestLabel') || 'interest'}</span>
                     </div>
                     <div className="repay-loan-progress">
                       <div className="repay-progress-bar">
                         <div className="repay-progress-fill" style={{ width: `${total > 0 ? Math.round((paidCount / total) * 100) : 0}%` }} />
                       </div>
-                      <span className="repay-progress-label">{paidCount}/{total} paid</span>
+                      <span className="repay-progress-label">{paidCount}/{total} {t('farmer.paid') || 'paid'}</span>
                     </div>
                   </div>
                   <div className="repay-calendar-grid">
@@ -1251,7 +1339,7 @@ export default function FarmerDashboard() {
                             <div className="repay-tick" title="Paid">&#10003;</div>
                           ) : (
                             <div className={`repay-status-label repay-status-label--${isOverdue ? 'overdue' : 'pending'}`}>
-                              {isOverdue ? 'Overdue' : 'Pending'}
+                              {isOverdue ? (t('farmer.overdue') || 'Overdue') : (t('farmer.pending') || 'Pending')}
                             </div>
                           )}
                         </div>
@@ -1274,7 +1362,7 @@ export default function FarmerDashboard() {
             </button>
           </div>
 
-          <div className="farmer-farm-tabs" role="tablist" aria-label="Farm data sections">
+          <div className="farmer-farm-tabs" role="tablist" aria-label={t('farmer.farmDataSections') || 'Farm data sections'}>
             <button
               type="button"
               className={`farmer-farm-tab ${activeFarmTab === 'employees' ? 'farmer-farm-tab--active' : ''}`}
@@ -1313,7 +1401,7 @@ export default function FarmerDashboard() {
                 <form className="farmer-dashboard__form" onSubmit={handleAddEmployee}>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Full name</span>
+                      <span>{t('farmer.fullName') || 'Full name'}</span>
                       <input
                         type="text"
                         value={employeeForm.full_name}
@@ -1321,7 +1409,7 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Role</span>
+                      <span>{t('farmer.role') || 'Role'}</span>
                       <input
                         type="text"
                         value={employeeForm.role}
@@ -1331,7 +1419,7 @@ export default function FarmerDashboard() {
                   </div>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Start date</span>
+                      <span>{t('farmer.startDate') || 'Start date'}</span>
                       <input
                         type="date"
                         value={employeeForm.start_date}
@@ -1339,20 +1427,20 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Pay frequency</span>
+                      <span>{t('farmer.payFrequency') || 'Pay frequency'}</span>
                       <select
                         value={employeeForm.pay_frequency}
                         onChange={(e) => setEmployeeForm({ ...employeeForm, pay_frequency: e.target.value })}
                       >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="biweekly">Every 2 weeks</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="per_season">Per season</option>
+                        <option value="daily">{t('farmer.daily') || 'Daily'}</option>
+                        <option value="weekly">{t('farmer.weekly') || 'Weekly'}</option>
+                        <option value="biweekly">{t('farmer.everyTwoWeeks') || 'Every 2 weeks'}</option>
+                        <option value="monthly">{t('farmer.monthly') || 'Monthly'}</option>
+                        <option value="per_season">{t('farmer.perSeason') || 'Per season'}</option>
                       </select>
                     </label>
                     <label>
-                      <span>Pay amount (RWF)</span>
+                      <span>{t('farmer.payAmountRwf') || 'Pay amount (RWF)'}</span>
                       <input
                         type="number"
                         min={0}
@@ -1362,22 +1450,22 @@ export default function FarmerDashboard() {
                     </label>
                   </div>
                   <button type="submit" className="farmer-dashboard__submit">
-                    Add employee
+                    {t('farmer.addEmployee') || 'Add employee'}
                   </button>
                 </form>
               </div>
               {farmEmployees.length > 0 && (
               <div className="dashboard-card farmer-dashboard__card-table">
-                <h3 className="dashboard-card__title">Employee records</h3>
+                <h3 className="dashboard-card__title">{t('farmer.employeeRecords') || 'Employee records'}</h3>
                 <div className="farmer-dashboard__table-wrapper">
                   <table className="farmer-dashboard__table">
                     <thead>
                       <tr>
-                        <th>Name</th>
-                        <th>Role</th>
-                        <th>Start date</th>
-                        <th>Pay freq.</th>
-                        <th>Pay amount</th>
+                        <th>{t('farmer.name') || 'Name'}</th>
+                        <th>{t('farmer.role') || 'Role'}</th>
+                        <th>{t('farmer.startDate') || 'Start date'}</th>
+                        <th>{t('farmer.payFreqShort') || 'Pay freq.'}</th>
+                        <th>{t('farmer.payAmount') || 'Pay amount'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1405,7 +1493,7 @@ export default function FarmerDashboard() {
                 <form className="farmer-dashboard__form" onSubmit={handleAddSeed}>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Name</span>
+                      <span>{t('farmer.name') || 'Name'}</span>
                       <input
                         type="text"
                         value={seedForm.name}
@@ -1413,7 +1501,7 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Variety</span>
+                      <span>{t('farmer.variety') || 'Variety'}</span>
                       <input
                         type="text"
                         value={seedForm.variety}
@@ -1423,7 +1511,7 @@ export default function FarmerDashboard() {
                   </div>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Quantity</span>
+                      <span>{t('farmer.quantity') || 'Quantity'}</span>
                       <input
                         type="number"
                         min={0}
@@ -1432,35 +1520,35 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Unit</span>
+                      <span>{t('farmer.unit') || 'Unit'}</span>
                       <select
                         value={seedForm.unit}
                         onChange={(e) => setSeedForm({ ...seedForm, unit: e.target.value })}
                       >
-                        <option value="kg">kg</option>
-                        <option value="g">g</option>
-                        <option value="bag">bag</option>
-                        <option value="sack">sack</option>
-                        <option value="litre">litre</option>
+                        <option value="kg">{t('farmer.unitKg') || 'kg'}</option>
+                        <option value="g">{t('farmer.unitG') || 'g'}</option>
+                        <option value="bag">{t('farmer.unitBag') || 'bag'}</option>
+                        <option value="sack">{t('farmer.unitSack') || 'sack'}</option>
+                        <option value="litre">{t('farmer.unitLitre') || 'litre'}</option>
                       </select>
                     </label>
                   </div>
                   <button type="submit" className="farmer-dashboard__submit">
-                    Add stock
+                    {t('farmer.addStock') || 'Add stock'}
                   </button>
                 </form>
               </div>
               {seedStock.length > 0 && (
               <div className="dashboard-card farmer-dashboard__card-table">
-                <h3 className="dashboard-card__title">Seed & input records</h3>
+                <h3 className="dashboard-card__title">{t('farmer.seedInputRecords') || 'Seed & input records'}</h3>
                 <div className="farmer-dashboard__table-wrapper">
                   <table className="farmer-dashboard__table">
                     <thead>
                       <tr>
-                        <th>Name</th>
-                        <th>Variety</th>
-                        <th>Quantity</th>
-                        <th>Unit</th>
+                        <th>{t('farmer.name') || 'Name'}</th>
+                        <th>{t('farmer.variety') || 'Variety'}</th>
+                        <th>{t('farmer.quantity') || 'Quantity'}</th>
+                        <th>{t('farmer.unit') || 'Unit'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1487,19 +1575,19 @@ export default function FarmerDashboard() {
                 <form className="farmer-dashboard__form" onSubmit={handleAddFertilizer}>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Crop / field</span>
+                      <span>{t('farmer.cropField') || 'Crop / field'}</span>
                       <input
                         type="text"
-                        placeholder="e.g. Maize - Field A"
+                        placeholder={t('farmer.cropFieldPlaceholder') || 'e.g. Maize - Field A'}
                         value={fertilizerForm.crop}
                         onChange={(e) => setFertilizerForm({ ...fertilizerForm, crop: e.target.value })}
                       />
                     </label>
                     <label>
-                      <span>Fertilizer name</span>
+                      <span>{t('farmer.fertilizerName') || 'Fertilizer name'}</span>
                       <input
                         type="text"
-                        placeholder="e.g. NPK 17-17-17"
+                        placeholder={t('farmer.fertilizerPlaceholder') || 'e.g. NPK 17-17-17'}
                         value={fertilizerForm.fertilizer_name}
                         onChange={(e) => setFertilizerForm({ ...fertilizerForm, fertilizer_name: e.target.value })}
                       />
@@ -1507,7 +1595,7 @@ export default function FarmerDashboard() {
                   </div>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Date applied</span>
+                      <span>{t('farmer.dateApplied') || 'Date applied'}</span>
                       <input
                         type="date"
                         value={fertilizerForm.application_date}
@@ -1515,42 +1603,42 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Application rate</span>
+                      <span>{t('farmer.applicationRate') || 'Application rate'}</span>
                       <input
                         type="text"
-                        placeholder="e.g. 50 kg/ha"
+                        placeholder={t('farmer.applicationRatePlaceholder') || 'e.g. 50 kg/ha'}
                         value={fertilizerForm.rate}
                         onChange={(e) => setFertilizerForm({ ...fertilizerForm, rate: e.target.value })}
                       />
                     </label>
                     <label>
-                      <span>Interval (days)</span>
+                      <span>{t('farmer.intervalDays') || 'Interval (days)'}</span>
                       <input
                         type="number"
                         min={0}
-                        placeholder="e.g. 30"
+                        placeholder={t('farmer.intervalDaysPlaceholder') || 'e.g. 30'}
                         value={fertilizerForm.interval_days}
                         onChange={(e) => setFertilizerForm({ ...fertilizerForm, interval_days: e.target.value })}
                       />
                     </label>
                   </div>
                   <button type="submit" className="farmer-dashboard__submit">
-                    Add application
+                    {t('farmer.addApplication') || 'Add application'}
                   </button>
                 </form>
               </div>
               {fertilizerRecords.length > 0 && (
               <div className="dashboard-card farmer-dashboard__card-table">
-                <h3 className="dashboard-card__title">Fertilizer records</h3>
+                <h3 className="dashboard-card__title">{t('farmer.fertilizerRecords') || 'Fertilizer records'}</h3>
                 <div className="farmer-dashboard__table-wrapper">
                   <table className="farmer-dashboard__table">
                     <thead>
                       <tr>
-                        <th>Crop / field</th>
-                        <th>Fertilizer</th>
-                        <th>Date applied</th>
-                        <th>Rate</th>
-                        <th>Interval (days)</th>
+                        <th>{t('farmer.cropField') || 'Crop / field'}</th>
+                        <th>{t('farmer.fertilizer') || 'Fertilizer'}</th>
+                        <th>{t('farmer.dateApplied') || 'Date applied'}</th>
+                        <th>{t('farmer.rate') || 'Rate'}</th>
+                        <th>{t('farmer.intervalDays') || 'Interval (days)'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1578,7 +1666,7 @@ export default function FarmerDashboard() {
                 <form className="farmer-dashboard__form" onSubmit={handleAddProduction}>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Crop</span>
+                      <span>{t('farmer.crop') || 'Crop'}</span>
                       <input
                         type="text"
                         value={productionForm.crop}
@@ -1586,7 +1674,7 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Season</span>
+                      <span>{t('farmer.season') || 'Season'}</span>
                       <input
                         type="text"
                         value={productionForm.season}
@@ -1594,7 +1682,7 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Area</span>
+                      <span>{t('farmer.area') || 'Area'}</span>
                       <div className="farmer-dashboard__input-unit-group">
                         <input
                           type="number"
@@ -1608,17 +1696,17 @@ export default function FarmerDashboard() {
                           value={productionForm.area_unit}
                           onChange={(e) => setProductionForm({ ...productionForm, area_unit: e.target.value })}
                         >
-                          <option value="ha">ha</option>
-                          <option value="acres">acres</option>
-                          <option value="are">ares</option>
-                          <option value="m2">m²</option>
+                          <option value="ha">{t('farmer.unitHaShort') || 'ha'}</option>
+                          <option value="acres">{t('farmer.unitAcres') || 'acres'}</option>
+                          <option value="are">{t('farmer.unitAres') || 'ares'}</option>
+                          <option value="m2">{t('farmer.unitSquareMeters') || 'm²'}</option>
                         </select>
                       </div>
                     </label>
                   </div>
                   <div className="farmer-dashboard__form-row">
                     <label>
-                      <span>Planting date</span>
+                      <span>{t('farmer.plantingDate') || 'Planting date'}</span>
                       <input
                         type="date"
                         value={productionForm.planting_date}
@@ -1626,7 +1714,7 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Harvest date</span>
+                      <span>{t('farmer.harvestDate') || 'Harvest date'}</span>
                       <input
                         type="date"
                         value={productionForm.harvest_date}
@@ -1634,7 +1722,7 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Harvested quantity</span>
+                      <span>{t('farmer.harvestedQuantity') || 'Harvested quantity'}</span>
                       <input
                         type="number"
                         min={0}
@@ -1643,38 +1731,38 @@ export default function FarmerDashboard() {
                       />
                     </label>
                     <label>
-                      <span>Unit</span>
+                      <span>{t('farmer.unit') || 'Unit'}</span>
                       <select
                         value={productionForm.harvested_unit}
                         onChange={(e) => setProductionForm({ ...productionForm, harvested_unit: e.target.value })}
                       >
-                        <option value="kg">kg</option>
-                        <option value="ton">ton</option>
-                        <option value="bag">bag</option>
-                        <option value="sack">sack</option>
-                        <option value="litre">litre</option>
+                        <option value="kg">{t('farmer.unitKg') || 'kg'}</option>
+                        <option value="ton">{t('farmer.unitTon') || 'ton'}</option>
+                        <option value="bag">{t('farmer.unitBag') || 'bag'}</option>
+                        <option value="sack">{t('farmer.unitSack') || 'sack'}</option>
+                        <option value="litre">{t('farmer.unitLitre') || 'litre'}</option>
                       </select>
                     </label>
                   </div>
                   <button type="submit" className="farmer-dashboard__submit">
-                    Add production record
+                    {t('farmer.addProductionRecord') || 'Add production record'}
                   </button>
                 </form>
               </div>
               {productionRecords.length > 0 && (
               <div className="dashboard-card farmer-dashboard__card-table">
-                <h3 className="dashboard-card__title">Production records</h3>
+                <h3 className="dashboard-card__title">{t('farmer.productionRecords') || 'Production records'}</h3>
                 <div className="farmer-dashboard__table-wrapper">
                   <table className="farmer-dashboard__table">
                     <thead>
                       <tr>
-                        <th>Crop</th>
-                        <th>Season</th>
-                        <th>Area</th>
-                        <th>Planting date</th>
-                        <th>Harvest date</th>
-                        <th>Harvested qty</th>
-                        <th>Unit</th>
+                        <th>{t('farmer.crop') || 'Crop'}</th>
+                        <th>{t('farmer.season') || 'Season'}</th>
+                        <th>{t('farmer.area') || 'Area'}</th>
+                        <th>{t('farmer.plantingDate') || 'Planting date'}</th>
+                        <th>{t('farmer.harvestDate') || 'Harvest date'}</th>
+                        <th>{t('farmer.harvestedQty') || 'Harvested qty'}</th>
+                        <th>{t('farmer.unit') || 'Unit'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1723,7 +1811,7 @@ export default function FarmerDashboard() {
               <h3 className="farmer-profile-modern__name">
                 {profileForm.full_name || 'Farmer'}
               </h3>
-              <p className="farmer-profile-modern__meta"><strong>Email:</strong> {profile?.email || user?.email || user?.username || '—'}</p>
+              <p className="farmer-profile-modern__meta"><strong>{t('getStarted.emailLabel') || 'Email'}:</strong> {profile?.email || user?.email || user?.username || '—'}</p>
               <label className="farmer-profile-modern__upload-btn">
                 {t('farmer.choosePhoto') || 'Choose picture'}
                 <input
@@ -1740,48 +1828,58 @@ export default function FarmerDashboard() {
 
             <div className="farmer-profile-modern__right">
               <div className="farmer-profile-modern__card">
-                <h3 className="farmer-profile-modern__title">General Information</h3>
+                <h3 className="farmer-profile-modern__title">{t('farmer.generalInformation') || 'General Information'}</h3>
                 <div className="farmer-profile-modern__table">
                   <div className="farmer-profile-modern__row">
-                    <span>Full Name</span>
+                    <span>{t('farmer.fullName') || 'Full Name'}</span>
                     <span>:</span>
                     <input name="full_name" value={profileForm.full_name} onChange={handleProfileFieldChange} />
                   </div>
                   <div className="farmer-profile-modern__row">
-                    <span>Location</span>
+                    <span>{t('farmer.district') || 'District'}</span>
                     <span>:</span>
-                    <input name="location" value={profileForm.location} onChange={handleProfileFieldChange} />
+                    <input name="district" value={profileForm.district} onChange={handleProfileFieldChange} placeholder={t('farmer.districtPlaceholder') || 'e.g. Gasabo'} />
                   </div>
                   <div className="farmer-profile-modern__row">
-                    <span>Phone</span>
+                    <span>{t('farmer.sector') || 'Sector'}</span>
+                    <span>:</span>
+                    <input name="sector" value={profileForm.sector} onChange={handleProfileFieldChange} placeholder={t('farmer.sectorPlaceholder') || 'e.g. Kacyiru'} />
+                  </div>
+                  <div className="farmer-profile-modern__row">
+                    <span>{t('farmer.cell') || 'Cell'}</span>
+                    <span>:</span>
+                    <input name="cell" value={profileForm.cell} onChange={handleProfileFieldChange} placeholder={t('farmer.cellPlaceholder') || 'e.g. Kibaza'} />
+                  </div>
+                  <div className="farmer-profile-modern__row">
+                    <span>{t('farmer.village') || 'Village'}</span>
+                    <span>:</span>
+                    <input name="village" value={profileForm.village} onChange={handleProfileFieldChange} placeholder={t('farmer.villagePlaceholder') || 'e.g. Nyagatovu'} />
+                  </div>
+                  <div className="farmer-profile-modern__row">
+                    <span>{t('farmer.phone') || 'Phone'}</span>
                     <span>:</span>
                     <input name="phone" value={profileForm.phone} onChange={handleProfileFieldChange} />
                   </div>
                   <div className="farmer-profile-modern__row">
-                    <span>Gender</span>
+                    <span>{t('farmer.gender') || 'Gender'}</span>
                     <span>:</span>
-                    <input name="gender" value={profileForm.gender} onChange={handleProfileFieldChange} placeholder="Male/Female" />
-                  </div>
-                  <div className="farmer-profile-modern__row">
-                    <span>Cooperative</span>
-                    <span>:</span>
-                    <input name="cooperative_name" value={profileForm.cooperative_name} onChange={handleProfileFieldChange} placeholder={t('farmer.cooperativePlaceholder') || 'Optional'} />
+                    <input name="gender" value={profileForm.gender} onChange={handleProfileFieldChange} placeholder={t('farmer.maleFemalePlaceholder') || 'Male/Female'} />
                   </div>
                 </div>
               </div>
 
               <div className="farmer-profile-modern__card">
-                <h3 className="farmer-profile-modern__title">Other Information</h3>
+                <h3 className="farmer-profile-modern__title">{t('farmer.otherInformation') || 'Other Information'}</h3>
                 <textarea
                   name="about"
                   value={profileForm.about}
                   onChange={handleProfileFieldChange}
                   className="farmer-profile-modern__about"
-                  placeholder="Add additional information about your farm profile"
+                  placeholder={t('farmer.aboutPlaceholder') || 'Add additional information about your farm profile'}
                 />
                 <div className="farmer-profile-modern__actions">
                   <button type="submit" className="farmer-dashboard__submit" disabled={profileSaving}>
-                    {profileSaving ? 'Updating...' : 'Update profile'}
+                    {profileSaving ? (t('farmer.updating') || 'Updating...') : (t('farmer.updateProfile') || 'Update profile')}
                   </button>
                   <button
                     type="button"

@@ -9,6 +9,7 @@ urlpatterns = [
     path('auth/login/', views.auth_login),
     path('auth/forgot-password/', views.auth_forgot_password),
     path('auth/reset-password/', views.auth_reset_password),
+    path('fallback/sms/', views.fallback_sms),
     # Activity tracking (visitors) + Admin API
     path('activity/log/', views.activity_log),
     path('admin/activity/', views.admin_activity_list),

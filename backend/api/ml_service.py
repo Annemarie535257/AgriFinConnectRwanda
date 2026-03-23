@@ -61,9 +61,20 @@ def _load_artifacts():
     _models['feature_cols'] = joblib.load(MODELS_DIR / 'feature_columns.pkl')
     _models['scaler'] = joblib.load(MODELS_DIR / 'scaler.pkl')
     _models['label_encoder'] = joblib.load(MODELS_DIR / 'label_encoder.pkl')
+    classes = [str(c).strip().lower() for c in _models['label_encoder'].classes_]
+    if 'approved' in classes:
+        _models['approved_label_idx'] = classes.index('approved')
+    elif '1' in classes:
+        _models['approved_label_idx'] = classes.index('1')
+    else:
+        _models['approved_label_idx'] = 1 if len(classes) > 1 else 0
     _models['classifier'] = joblib.load(MODELS_DIR / 'loan_default_classifier.pkl')
     _models['risk_regressor'] = joblib.load(MODELS_DIR / 'risk_score_regressor.pkl')
     _models['amount_regressor'] = joblib.load(MODELS_DIR / 'loan_amount_regressor.pkl')
+    amount_scaler_path = MODELS_DIR / 'loan_amount_scaler.pkl'
+    amount_feature_cols_path = MODELS_DIR / 'loan_amount_feature_columns.pkl'
+    _models['amount_scaler'] = joblib.load(amount_scaler_path) if amount_scaler_path.exists() else None
+    _models['amount_feature_cols'] = joblib.load(amount_feature_cols_path) if amount_feature_cols_path.exists() else None
 
 
 def _encode_categorical(name, value):
@@ -103,8 +114,7 @@ def predict_eligibility(payload):
     X = _payload_to_vector(payload, include_loan_amount=True)
     X_scaled = _models['scaler'].transform(X)
     pred = _models['classifier'].predict(X_scaled)[0]
-    # label_encoder: typically 0=Denied, 1=Approved
-    return int(pred) == 1
+    return int(pred) == int(_models['approved_label_idx'])
 
 
 def predict_risk(payload):
@@ -119,10 +129,30 @@ def predict_risk(payload):
 def recommend_amount(payload):
     """Model 3: recommended loan amount (trained on approved-only, 32 features)."""
     _load_artifacts()
-    X = _payload_to_vector(payload, include_loan_amount=True)  # 33 cols
-    X_scaled = _models['scaler'].transform(X)
-    feature_cols = _models['feature_cols']
-    idx_no_loan = [i for i, c in enumerate(feature_cols) if c != 'LoanAmount']
-    X_amt = X_scaled[:, idx_no_loan]
+    amount_scaler = _models.get('amount_scaler')
+    amount_feature_cols = _models.get('amount_feature_cols')
+
+    if amount_scaler is not None and amount_feature_cols:
+        # New artifact set: Model 3 has its own scaler and explicit feature order.
+        vec = []
+        for col in amount_feature_cols:
+            if col in CATEGORICAL_OPTIONS:
+                raw = payload.get(col, list(CATEGORICAL_OPTIONS[col])[0])
+                vec.append(_encode_categorical(col, raw))
+            else:
+                raw = payload.get(col, DEFAULT_NUMERIC.get(col, 0))
+                try:
+                    vec.append(float(raw))
+                except (TypeError, ValueError):
+                    vec.append(DEFAULT_NUMERIC.get(col, 0))
+        X_amt = amount_scaler.transform(np.array(vec, dtype=np.float64).reshape(1, -1))
+    else:
+        # Backward compatibility for old artifacts.
+        X = _payload_to_vector(payload, include_loan_amount=True)  # 33 cols
+        X_scaled = _models['scaler'].transform(X)
+        feature_cols = _models['feature_cols']
+        idx_no_loan = [i for i, c in enumerate(feature_cols) if c != 'LoanAmount']
+        X_amt = X_scaled[:, idx_no_loan]
+
     amount = _models['amount_regressor'].predict(X_amt)[0]
     return float(amount)

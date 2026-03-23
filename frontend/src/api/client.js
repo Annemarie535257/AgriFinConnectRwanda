@@ -5,6 +5,7 @@
  * so the deployed app reaches the backend even when the build env didn't set VITE_API_URL.
  */
 const LIVE_API_BASE = 'https://agrifinconnectrwanda.onrender.com/api';
+const OFFLINE_QUEUE_KEY = 'agrifinconnect-offline-queue-v1';
 
 function getApiBase() {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
@@ -16,21 +17,44 @@ function getApiBase() {
 }
 const API_BASE = getApiBase();
 
-async function request(endpoint, options = {}) {
-  const url = `${API_BASE}${endpoint}`;
-  const isFormDataBody = options.body instanceof FormData;
-  const config = {
-    ...options,
-    headers: {
-      ...options.headers,
-    },
-  };
-  if (!isFormDataBody && !config.headers['Content-Type']) {
-    config.headers['Content-Type'] = 'application/json';
+function canQueueRequest(method, endpoint, body) {
+  const m = (method || 'GET').toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(m)) return false;
+  if (body instanceof FormData) return false;
+  if (endpoint.startsWith('/auth/')) return false;
+  return true;
+}
+
+function readOfflineQueue() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
-  if (options.body && typeof options.body === 'object' && !isFormDataBody) {
-    config.body = JSON.stringify(options.body);
+}
+
+function writeOfflineQueue(queue) {
+  try {
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch {
+    // Ignore storage write failures.
   }
+}
+
+function enqueueOfflineRequest(endpoint, method, body) {
+  const queue = readOfflineQueue();
+  queue.push({
+    endpoint,
+    method,
+    body,
+    queuedAt: new Date().toISOString(),
+  });
+  writeOfflineQueue(queue);
+}
+
+async function performRequest(url, config) {
   const res = await fetch(url, config);
   if (!res.ok) {
     const err = new Error(res.statusText || 'API error');
@@ -50,6 +74,69 @@ async function request(endpoint, options = {}) {
     return res.json();
   }
   return res.text();
+}
+
+export async function flushOfflineQueue() {
+  const queue = readOfflineQueue();
+  if (!queue.length || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    return { processed: 0, remaining: queue.length };
+  }
+
+  const remaining = [];
+  let processed = 0;
+  for (const item of queue) {
+    try {
+      await request(
+        item.endpoint,
+        { method: item.method, body: item.body },
+        { queueOnOffline: false }
+      );
+      processed += 1;
+    } catch {
+      remaining.push(item);
+    }
+  }
+
+  writeOfflineQueue(remaining);
+  return { processed, remaining: remaining.length };
+}
+
+async function request(endpoint, options = {}, requestOptions = {}) {
+  const url = `${API_BASE}${endpoint}`;
+  const isFormDataBody = options.body instanceof FormData;
+  const method = (options.method || 'GET').toUpperCase();
+  const config = {
+    ...options,
+    headers: {
+      ...options.headers,
+    },
+  };
+  if (!isFormDataBody && !config.headers['Content-Type']) {
+    config.headers['Content-Type'] = 'application/json';
+  }
+  if (options.body && typeof options.body === 'object' && !isFormDataBody) {
+    config.body = JSON.stringify(options.body);
+  }
+
+  try {
+    return await performRequest(url, config);
+  } catch (err) {
+    const allowQueue = requestOptions.queueOnOffline !== false;
+    const networkFailure = err && (err.name === 'TypeError' || err.status === undefined);
+    if (allowQueue && networkFailure && canQueueRequest(method, endpoint, options.body)) {
+      enqueueOfflineRequest(endpoint, method, options.body || null);
+      const queueErr = new Error('No internet connection. Action saved and will sync when connection is restored.');
+      queueErr.offlineQueued = true;
+      throw queueErr;
+    }
+    throw err;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    flushOfflineQueue().catch(() => {});
+  });
 }
 
 /** POST /api/eligibility — loan eligibility prediction (Model 1). Optional language: en | fr | rw */
@@ -134,7 +221,7 @@ export async function register({ email, password, role, name }) {
   return request('/auth/register/', {
     method: 'POST',
     body: { email, password, role, name: name || '' },
-  });
+  }, { queueOnOffline: false });
 }
 
 /** POST /api/auth/verify-registration-otp — verify farmer registration OTP */
@@ -142,7 +229,7 @@ export async function verifyRegistrationOtp({ email, otp }) {
   return request('/auth/verify-registration-otp/', {
     method: 'POST',
     body: { email: (email || '').trim().toLowerCase(), otp: (otp || '').trim() },
-  });
+  }, { queueOnOffline: false });
 }
 
 /** POST /api/auth/resend-registration-otp — resend farmer registration OTP */
@@ -150,7 +237,7 @@ export async function resendRegistrationOtp({ email }) {
   return request('/auth/resend-registration-otp/', {
     method: 'POST',
     body: { email: (email || '').trim().toLowerCase() },
-  });
+  }, { queueOnOffline: false });
 }
 
 /** POST /api/auth/login — login (all roles) */
@@ -161,7 +248,7 @@ export async function login({ email, password }) {
       email: (email || '').trim().toLowerCase(),
       password: password || '',
     },
-  });
+  }, { queueOnOffline: false });
 }
 
 /** POST /api/auth/forgot-password — request password reset email */
@@ -169,7 +256,7 @@ export async function forgotPassword({ email }) {
   return request('/auth/forgot-password/', {
     method: 'POST',
     body: { email: (email || '').trim().toLowerCase() },
-  });
+  }, { queueOnOffline: false });
 }
 
 /** POST /api/auth/reset-password — set new password with token */
@@ -177,6 +264,18 @@ export async function resetPassword({ token, newPassword }) {
   return request('/auth/reset-password/', {
     method: 'POST',
     body: { token: (token || '').trim(), new_password: newPassword },
+  }, { queueOnOffline: false });
+}
+
+/** POST /api/fallback/sms — trigger SMS fallback notification. */
+export async function sendSmsFallback({ toPhone, message, context = 'general' }) {
+  return authRequest('/fallback/sms/', {
+    method: 'POST',
+    body: {
+      to_phone: (toPhone || '').trim(),
+      message: (message || '').trim(),
+      context: (context || 'general').trim(),
+    },
   });
 }
 

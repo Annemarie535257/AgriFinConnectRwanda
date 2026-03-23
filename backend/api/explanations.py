@@ -46,6 +46,11 @@ TRANSLATIONS = {
         "employment_status_f": "employment status ({})",
         "loan_duration": "requested loan duration ({} months)",
         "recommend_basis": "The recommendation is driven by income, credit score, debt burden, assets, employment, and loan term from your application.",
+        "rejection_intro": "Loan rejection summary:",
+        "rejection_profile": "Profile factors: {}",
+        "rejection_missing_docs": "Missing required documents: {}",
+        "rejection_doc_issues": "Document issues noted during review: {}",
+        "rejection_fallback": "The application was rejected after combining profile risk and document review findings.",
     },
     "fr": {
         "approved_prefix": "Approuvé : La demande a été approuvée en raison de ",
@@ -88,6 +93,11 @@ TRANSLATIONS = {
         "employment_status_f": "situation d'emploi ({})",
         "loan_duration": "durée du prêt demandée ({} mois)",
         "recommend_basis": "La recommandation est basée sur les revenus, le score de crédit, l'endettement, les actifs, l'emploi et la durée du prêt de votre demande.",
+        "rejection_intro": "Résumé du rejet du prêt :",
+        "rejection_profile": "Facteurs du profil : {}",
+        "rejection_missing_docs": "Documents obligatoires manquants : {}",
+        "rejection_doc_issues": "Problèmes de documents notés pendant l'examen : {}",
+        "rejection_fallback": "La demande a été rejetée après combinaison des risques du profil et des constats de vérification des documents.",
     },
     "rw": {
         "approved_prefix": "Yemewe: Gusaba kwemewe kubera ",
@@ -130,6 +140,11 @@ TRANSLATIONS = {
         "employment_status_f": "akazi ({})",
         "loan_duration": "igihe cy'inguzanyo yasabwe ({} amezi)",
         "recommend_basis": "Icyitegererezo gishingiye ku mikoro, inote, inguzanyo, umutungo, akazi n'igihe cy'inguzanyo mu gusaba kwawe.",
+        "rejection_intro": "Incamake y'impamvu y'iyangwa ry'inguzanyo:",
+        "rejection_profile": "Impamvu zituruka kuri profili: {}",
+        "rejection_missing_docs": "Inyandiko z'ingenzi zibura: {}",
+        "rejection_doc_issues": "Ibibazo by'inyandiko byagaragajwe mu igenzura: {}",
+        "rejection_fallback": "Ubusabe bwanzwe nyuma yo guhuza ingorane za profili n'ibyasanzwe mu igenzura ry'inyandiko.",
     },
 }
 
@@ -309,3 +324,26 @@ def eligibility_description(language="en"):
     """Static description for eligibility API response."""
     lang = language if language in ("en", "fr", "rw") else "en"
     return _tr(lang, "eligibility_description")
+
+
+def application_rejection_reason(profile_reason='', missing_documents=None, document_issues=None, language='en'):
+    """Build a final loan rejection explanation from profile and document review findings."""
+    lang = language if language in ("en", "fr", "rw") else "en"
+    sections = []
+
+    profile_reason = (profile_reason or '').strip()
+    if profile_reason:
+        sections.append(_tr(lang, 'rejection_profile', profile_reason))
+
+    missing_documents = [str(item).strip() for item in (missing_documents or []) if str(item).strip()]
+    if missing_documents:
+        sections.append(_tr(lang, 'rejection_missing_docs', ', '.join(missing_documents)))
+
+    document_issues = (document_issues or '').strip()
+    if document_issues:
+        sections.append(_tr(lang, 'rejection_doc_issues', document_issues))
+
+    if not sections:
+        return _tr(lang, 'rejection_fallback')
+
+    return _tr(lang, 'rejection_intro') + ' ' + ' '.join(sections)

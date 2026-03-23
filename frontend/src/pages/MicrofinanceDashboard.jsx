@@ -51,7 +51,7 @@ export default function MicrofinanceDashboard() {
       const res = await getMfiApplications('all');
       setApplications(res.applications || []);
     } catch (err) {
-      setError(err.body?.error || err.message || 'Failed to load applications');
+      setError(err.body?.error || err.message || t('mfi.errorLoadApplications') || 'Failed to load applications');
     } finally {
       setLoading(false);
     }
@@ -64,7 +64,7 @@ export default function MicrofinanceDashboard() {
       const res = await getMfiPortfolio();
       setPortfolio(res);
     } catch (err) {
-      setError(err.body?.error || err.message || 'Failed to load portfolio');
+      setError(err.body?.error || err.message || t('mfi.errorLoadPortfolio') || 'Failed to load portfolio');
     } finally {
       setLoading(false);
     }
@@ -98,11 +98,11 @@ export default function MicrofinanceDashboard() {
     setSuccess(null);
     try {
       await sendMfiApplicationMessage(app.id, message);
-      setSuccess('Message sent to farmer.');
+      setSuccess(t('mfi.messageSent') || 'Message sent to farmer.');
       setMessageForm((prev) => ({ ...prev, [app.id]: { message: '' } }));
       fetchApplications();
     } catch (err) {
-      setError(err.body?.error || err.message || 'Failed to send message');
+      setError(err.body?.error || err.message || t('mfi.errorSendMessage') || 'Failed to send message');
     } finally {
       setSendingMessageId(null);
     }
@@ -114,11 +114,11 @@ export default function MicrofinanceDashboard() {
     setSuccess(null);
     try {
       await reviewMfiApplication(appId, action, extra);
-      setSuccess(action === 'approve' ? 'Application approved.' : 'Application rejected.');
+      setSuccess(action === 'approve' ? (t('mfi.applicationApproved') || 'Application approved.') : (t('mfi.applicationRejected') || 'Application rejected.'));
       fetchApplications();
       if (activeTab === 'portfolio') fetchPortfolio();
     } catch (err) {
-      setError(err.body?.error || err.message || 'Failed to process');
+      setError(err.body?.error || err.message || t('mfi.errorProcess') || 'Failed to process');
     } finally {
       setLoading(false);
     }
@@ -139,12 +139,12 @@ export default function MicrofinanceDashboard() {
         payload.interest_rate = 0.12;
       }
       await updateMfiApplicationStatus(app.id, payload);
-      setSuccess('Status updated.');
+      setSuccess(t('mfi.statusUpdated') || 'Status updated.');
       setStatusForm((prev) => ({ ...prev, [app.id]: {} }));
       fetchApplications();
       if (activeTab === 'portfolio') fetchPortfolio();
     } catch (err) {
-      setError(err.body?.error || err.message || 'Failed to update status');
+      setError(err.body?.error || err.message || t('mfi.errorUpdateStatus') || 'Failed to update status');
     } finally {
       setUpdatingId(null);
     }
@@ -164,7 +164,7 @@ export default function MicrofinanceDashboard() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err.body?.error || err.message || 'Failed to download package');
+      setError(err.body?.error || err.message || t('mfi.errorDownloadPackage') || 'Failed to download package');
     } finally {
       setDownloadingPackageId(null);
     }
@@ -218,7 +218,7 @@ export default function MicrofinanceDashboard() {
                 <span>{t('mfi.filterStatus')}:</span>
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                   <option value="all">{t('mfi.allStatuses') || 'All statuses'}</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending">{t('tracker.pending') || 'Pending'}</option>
                   <option value="under_review">{t('mfi.underReview')}</option>
                   <option value="documents_requested">{t('mfi.documentsRequested')}</option>
                   <option value="approved">{t('tracker.approved')}</option>
@@ -239,15 +239,16 @@ export default function MicrofinanceDashboard() {
                       </div>
                     </div>
                     <p><strong>{app.user_name || app.user_email}</strong></p>
-                    <p>Amount: RWF {Number(app.loan_amount_requested).toLocaleString()} · {app.loan_duration_months} months</p>
-                    <p>Income: RWF {Number(app.annual_income).toLocaleString()} · Credit: {app.credit_score}</p>
+                    <p>{t('mfi.amountLabel') || 'Amount'}: RWF {Number(app.loan_amount_requested).toLocaleString()} · {app.loan_duration_months} {t('farmer.months') || 'months'}</p>
+                    <p>{t('mfi.incomeLabel') || 'Income'}: RWF {Number(app.annual_income).toLocaleString()} · {t('mfi.creditLabel') || 'Credit'}: {app.credit_score}</p>
                     {app.eligibility_approved != null && (
-                      <p>AI Eligibility: {app.eligibility_approved ? t('card1.approved') : t('card1.denied')}</p>
+                      <p>{t('mfi.aiEligibility') || 'AI Eligibility'}: {app.eligibility_approved ? t('card1.approved') : t('card1.denied')}</p>
                     )}
                     {app.eligibility_reason && <p className="mfi-dashboard__reason">{app.eligibility_reason}</p>}
-                    {app.risk_score != null && <p>Risk score: {app.risk_score?.toFixed(2)}</p>}
+                    {app.rejection_reason && <p className="mfi-dashboard__reason">{app.rejection_reason}</p>}
+                    {app.risk_score != null && <p>{t('farmer.riskScoreLabel') || 'Risk score'}: {app.risk_score?.toFixed(2)}</p>}
                     {app.recommended_amount != null && (
-                      <p>Recommended: RWF {Number(app.recommended_amount).toLocaleString()}</p>
+                      <p>{t('farmer.recommendedLabel') || 'Recommended'}: RWF {Number(app.recommended_amount).toLocaleString()}</p>
                     )}
                     <p className="mfi-dashboard__date">{new Date(app.created_at).toLocaleDateString()}</p>
 
@@ -268,7 +269,7 @@ export default function MicrofinanceDashboard() {
                                   rel="noreferrer"
                                   className="mfi-dashboard__docs-link"
                                 >
-                                  {doc.file_name || 'Open file'}
+                                  {doc.file_name || (t('mfi.openFile') || 'Open file')}
                                 </a>
                               ) : (
                                 <span className="mfi-dashboard__docs-missing">{t('mfi.noDocuments')}</span>
@@ -391,11 +392,11 @@ export default function MicrofinanceDashboard() {
                 </div>
                 {portfolio.repayments && (
                   <div className="dashboard-card">
-                    <h3 className="dashboard-card__title">Repayments</h3>
+                    <h3 className="dashboard-card__title">{t('mfi.repayments') || 'Repayments'}</h3>
                     <div className="mfi-dashboard__repayments">
-                      <span className="mfi-rep-pill mfi-rep-pill--paid">Paid: {portfolio.repayments.paid}</span>
-                      <span className="mfi-rep-pill mfi-rep-pill--pending">Pending: {portfolio.repayments.pending}</span>
-                      <span className="mfi-rep-pill mfi-rep-pill--overdue">Overdue: {portfolio.repayments.overdue}</span>
+                      <span className="mfi-rep-pill mfi-rep-pill--paid">{t('mfi.paid') || 'Paid'}: {portfolio.repayments.paid}</span>
+                      <span className="mfi-rep-pill mfi-rep-pill--pending">{t('mfi.pending') || 'Pending'}: {portfolio.repayments.pending}</span>
+                      <span className="mfi-rep-pill mfi-rep-pill--overdue">{t('mfi.overdue') || 'Overdue'}: {portfolio.repayments.overdue}</span>
                     </div>
                   </div>
                 )}
@@ -405,7 +406,7 @@ export default function MicrofinanceDashboard() {
             {/* Per-loan repayment tables */}
             {portfolio?.loans?.length > 0 ? (
               <div style={{ marginTop: '2rem' }}>
-                <h3 className="mfi-dashboard__sub-title">Repayment schedules</h3>
+                <h3 className="mfi-dashboard__sub-title">{t('mfi.repaymentSchedules') || 'Repayment schedules'}</h3>
                 {portfolio.loans.map((loan) => {
                   const paidCount = loan.repayments.filter((r) => r.status === 'paid').length;
                   const total = loan.repayments.length;
@@ -417,25 +418,25 @@ export default function MicrofinanceDashboard() {
                           <span className="mfi-repay-farmer-name">{loan.farmer_name}</span>
                           <span className="mfi-repay-farmer-email">{loan.farmer_email}</span>
                           {loan.issued_at && (
-                            <span className="mfi-repay-issued">Issued: {new Date(loan.issued_at).toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                            <span className="mfi-repay-issued">{t('mfi.issued') || 'Issued'}: {new Date(loan.issued_at).toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                           )}
                         </div>
                         <div className="mfi-repay-table-meta">
                           <span>Loan #{loan.loan_id}</span>
                           <span className="mfi-repay-meta-sep">·</span>
-                          <span>RWF {Number(loan.amount).toLocaleString()} total</span>
+                          <span>RWF {Number(loan.amount).toLocaleString()} {t('farmer.totalLabel') || 'total'}</span>
                           <span className="mfi-repay-meta-sep">·</span>
-                          <span className="mfi-repay-monthly">RWF {Number(loan.monthly_payment).toLocaleString()} / month</span>
+                          <span className="mfi-repay-monthly">RWF {Number(loan.monthly_payment).toLocaleString()} / {t('farmer.monthLabel') || 'month'}</span>
                           <span className="mfi-repay-meta-sep">·</span>
-                          <span>{loan.duration_months} months</span>
+                          <span>{loan.duration_months} {t('farmer.months') || 'months'}</span>
                           <span className="mfi-repay-meta-sep">·</span>
-                          <span>{(Number(loan.interest_rate) * 100).toFixed(1)}% interest</span>
+                          <span>{(Number(loan.interest_rate) * 100).toFixed(1)}% {t('farmer.interestLabel') || 'interest'}</span>
                         </div>
                         <div className="mfi-repay-table-progress">
                           <div className="repay-progress-bar">
                             <div className="repay-progress-fill" style={{ width: `${total > 0 ? Math.round((paidCount / total) * 100) : 0}%` }} />
                           </div>
-                          <span className="repay-progress-label">{paidCount}/{total} paid</span>
+                          <span className="repay-progress-label">{paidCount}/{total} {t('mfi.paid') || 'paid'}</span>
                         </div>
                       </div>
 
@@ -445,12 +446,12 @@ export default function MicrofinanceDashboard() {
                           <thead>
                             <tr>
                               <th>#</th>
-                              <th>Month</th>
-                              <th>Due date</th>
-                              <th>Amount (RWF)</th>
-                              <th>Status</th>
-                              <th>Paid on</th>
-                              <th>Action</th>
+                              <th>{t('mfi.month') || 'Month'}</th>
+                              <th>{t('mfi.dueDate') || 'Due date'}</th>
+                              <th>{t('mfi.amountRwf') || 'Amount (RWF)'}</th>
+                              <th>{t('mfi.currentStatusLabel') || 'Status'}</th>
+                              <th>{t('mfi.paidOn') || 'Paid on'}</th>
+                              <th>{t('mfi.action') || 'Action'}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -460,7 +461,7 @@ export default function MicrofinanceDashboard() {
                               const isCurrentMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
                               const monthName = d.toLocaleString('default', { month: 'long', year: 'numeric' });
                               const isOverdue = r.status !== 'paid' && new Date(r.due_date) < now;
-                              const statusLabel = r.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : isCurrentMonth ? 'Due now' : 'Pending';
+                              const statusLabel = r.status === 'paid' ? (t('mfi.paid') || 'Paid') : isOverdue ? (t('mfi.overdue') || 'Overdue') : isCurrentMonth ? (t('mfi.dueNow') || 'Due now') : (t('mfi.pending') || 'Pending');
                               const statusClass = r.status === 'paid' ? 'paid' : isOverdue ? 'overdue' : isCurrentMonth ? 'current' : 'pending';
                               return (
                                 <tr key={r.id} className={`mfi-repay-row mfi-repay-row--${statusClass}${isCurrentMonth && r.status !== 'paid' ? ' mfi-repay-row--highlight' : ''}`}>
@@ -468,7 +469,7 @@ export default function MicrofinanceDashboard() {
                                   <td>
                                     {monthName}
                                     {isCurrentMonth && r.status !== 'paid' && (
-                                      <span className="mfi-current-badge">This month</span>
+                                      <span className="mfi-current-badge">{t('mfi.thisMonth') || 'This month'}</span>
                                     )}
                                   </td>
                                   <td>{r.due_date}</td>
@@ -477,7 +478,7 @@ export default function MicrofinanceDashboard() {
                                     <span className={`mfi-status-badge mfi-status-badge--${statusClass}`}>{statusLabel}</span>
                                   </td>
                                   <td className="mfi-repay-paid-on">
-                                    {r.paid_at ? new Date(r.paid_at).toLocaleDateString() : '—'}
+                                      {r.paid_at ? new Date(r.paid_at).toLocaleDateString() : '—'}
                                   </td>
                                   <td>
                                     {r.status === 'paid' ? (
@@ -508,13 +509,13 @@ export default function MicrofinanceDashboard() {
                                               } : prev.repayments,
                                             }));
                                           } catch (e) {
-                                            setError(e.body?.error || 'Failed to mark as paid');
+                                            setError(e.body?.error || t('mfi.errorMarkPaid') || 'Failed to mark as paid');
                                           } finally {
                                             setMfiMarkingPaid(null);
                                           }
                                         }}
                                       >
-                                        {mfiMarkingPaid === r.id ? '…' : 'Mark paid'}
+                                        {mfiMarkingPaid === r.id ? '…' : (t('mfi.markPaid') || 'Mark paid')}
                                       </button>
                                     )}
                                   </td>
@@ -529,7 +530,7 @@ export default function MicrofinanceDashboard() {
                 })}
               </div>
             ) : portfolio && (
-              <p className="mfi-dashboard__empty" style={{ marginTop: '1.5rem' }}>No active loans yet.</p>
+              <p className="mfi-dashboard__empty" style={{ marginTop: '1.5rem' }}>{t('mfi.noActiveLoans') || 'No active loans yet.'}</p>
             )}
 
             {!portfolio && <p className="mfi-dashboard__empty">{t('mfi.noApplications')}</p>}
@@ -546,7 +547,7 @@ export default function MicrofinanceDashboard() {
                 <span>{t('mfi.filterStatus')}:</span>
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                   <option value="all">{t('mfi.allStatuses') || 'All statuses'}</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending">{t('tracker.pending') || 'Pending'}</option>
                   <option value="under_review">{t('mfi.underReview')}</option>
                   <option value="documents_requested">{t('mfi.documentsRequested')}</option>
                   <option value="approved">{t('tracker.approved')}</option>
@@ -562,17 +563,17 @@ export default function MicrofinanceDashboard() {
                   <table className="mfi-dashboard__table">
                     <thead>
                       <tr>
-                        <th>Farmer</th>
-                        <th>Email</th>
+                        <th>{t('mfi.farmer') || 'Farmer'}</th>
+                        <th>{t('getStarted.emailLabel') || 'Email'}</th>
                         <th>{t('mfi.submittedAt') || 'Submitted at'}</th>
                         <th>{t('mfi.currentStatusLabel') || 'Current status'}</th>
-                        <th>Profile link</th>
+                        <th>{t('mfi.profileLink') || 'Profile link'}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {farmersSummary.map((app) => (
                         <tr key={`farmer-row-${app.user_id || app.id}`}>
-                          <td>{app.user_name || 'Farmer'}</td>
+                          <td>{app.user_name || (t('mfi.farmer') || 'Farmer')}</td>
                           <td>{app.user_email}</td>
                           <td>{new Date(app.created_at).toLocaleString()}</td>
                           <td>
@@ -586,7 +587,7 @@ export default function MicrofinanceDashboard() {
                               className="mfi-dashboard__docs-link"
                               onClick={() => setSelectedFarmerApp(app)}
                             >
-                              View profile
+                              {t('mfi.viewProfile') || 'View profile'}
                             </button>
                           </td>
                         </tr>
@@ -599,7 +600,7 @@ export default function MicrofinanceDashboard() {
                   <div className="mfi-dashboard__farmer-detail">
                     {/* Header */}
                     <div className="mfi-dashboard__farmer-detail-header">
-                      <h3 className="dashboard-card__title" style={{ margin: 0 }}>Farmer profile details</h3>
+                      <h3 className="dashboard-card__title" style={{ margin: 0 }}>{t('mfi.farmerProfileDetails') || 'Farmer profile details'}</h3>
                       <button type="button" onClick={() => setSelectedFarmerApp(null)} className="mfi-dashboard__farmer-detail-close">✕</button>
                     </div>
 
@@ -628,47 +629,52 @@ export default function MicrofinanceDashboard() {
                     <div className="mfi-dashboard__farmer-detail-grid">
                       {/* Personal info */}
                       <div className="mfi-dashboard__farmer-detail-section">
-                        <h4 className="mfi-dashboard__farmer-detail-section-title">Personal Information</h4>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Location</span><span>{selectedFarmerApplication.farmer_profile?.location || '—'}</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Phone</span><span>{selectedFarmerApplication.farmer_profile?.phone || '—'}</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Gender</span><span>{selectedFarmerApplication.farmer_profile?.gender || '—'}</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Cooperative</span><span>{selectedFarmerApplication.farmer_profile?.cooperative_name || '—'}</span></div>
+                        <h4 className="mfi-dashboard__farmer-detail-section-title">{t('mfi.personalInformation') || 'Personal Information'}</h4>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('farmer.location') || 'Location'}</span><span>{selectedFarmerApplication.farmer_profile?.location || '—'}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('farmer.phone') || 'Phone'}</span><span>{selectedFarmerApplication.farmer_profile?.phone || '—'}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('farmer.gender') || 'Gender'}</span><span>{selectedFarmerApplication.farmer_profile?.gender || '—'}</span></div>
                         {selectedFarmerApplication.farmer_profile?.about && (
                           <div className="mfi-dashboard__farmer-detail-row mfi-dashboard__farmer-detail-row--block">
-                            <span>About</span>
+                            <span>{t('mfi.about') || 'About'}</span>
                             <span>{selectedFarmerApplication.farmer_profile.about}</span>
                           </div>
                         )}
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Submitted at</span><span>{new Date(selectedFarmerApplication.created_at).toLocaleString()}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.submittedAt') || 'Submitted at'}</span><span>{new Date(selectedFarmerApplication.created_at).toLocaleString()}</span></div>
                       </div>
 
                       {/* Loan details */}
                       <div className="mfi-dashboard__farmer-detail-section">
-                        <h4 className="mfi-dashboard__farmer-detail-section-title">Loan Application</h4>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Amount requested</span><span>RWF {Number(selectedFarmerApplication.loan_amount_requested).toLocaleString()}</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Duration</span><span>{selectedFarmerApplication.loan_duration_months} months</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Annual income</span><span>RWF {Number(selectedFarmerApplication.annual_income).toLocaleString()}</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Credit score</span><span>{selectedFarmerApplication.credit_score ?? '—'}</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Employment</span><span>{selectedFarmerApplication.employment_status || '—'}</span></div>
-                        <div className="mfi-dashboard__farmer-detail-row"><span>Risk score</span><span>{selectedFarmerApplication.risk_score != null ? `${(selectedFarmerApplication.risk_score * 100).toFixed(1)}%` : '—'}</span></div>
+                        <h4 className="mfi-dashboard__farmer-detail-section-title">{t('mfi.loanApplication') || 'Loan Application'}</h4>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.amountRequested') || 'Amount requested'}</span><span>RWF {Number(selectedFarmerApplication.loan_amount_requested).toLocaleString()}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('farmer.durationLabel') || 'Duration'}</span><span>{selectedFarmerApplication.loan_duration_months} {t('farmer.months') || 'months'}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.annualIncome') || 'Annual income'}</span><span>RWF {Number(selectedFarmerApplication.annual_income).toLocaleString()}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('card1.creditScore') || 'Credit score'}</span><span>{selectedFarmerApplication.credit_score ?? '—'}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.employment') || 'Employment'}</span><span>{selectedFarmerApplication.employment_status || '—'}</span></div>
+                        <div className="mfi-dashboard__farmer-detail-row"><span>{t('farmer.riskScoreLabel') || 'Risk score'}</span><span>{selectedFarmerApplication.risk_score != null ? `${(selectedFarmerApplication.risk_score * 100).toFixed(1)}%` : '—'}</span></div>
                       </div>
 
                       {/* AI Assessment */}
                       <div className="mfi-dashboard__farmer-detail-section">
-                        <h4 className="mfi-dashboard__farmer-detail-section-title">AI Assessment</h4>
+                        <h4 className="mfi-dashboard__farmer-detail-section-title">{t('mfi.aiAssessment') || 'AI Assessment'}</h4>
                         <div className="mfi-dashboard__farmer-detail-row">
-                          <span>Eligibility</span>
+                            <span>{t('farmer.eligibilityLabel') || 'Eligibility'}</span>
                           <span style={{ color: selectedFarmerApplication.eligibility_approved ? '#2e7d32' : '#b71c1c', fontWeight: 600 }}>
-                            {selectedFarmerApplication.eligibility_approved ? '✓ Approved' : '✗ Not approved'}
+                            {selectedFarmerApplication.eligibility_approved ? `✓ ${t('card1.approved')}` : `✗ ${t('mfi.notApproved') || 'Not approved'}`}
                           </span>
                         </div>
                         {selectedFarmerApplication.recommended_amount != null && (
-                          <div className="mfi-dashboard__farmer-detail-row"><span>Recommended amount</span><span>RWF {Number(selectedFarmerApplication.recommended_amount).toLocaleString()}</span></div>
+                          <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.recommendedAmount') || 'Recommended amount'}</span><span>RWF {Number(selectedFarmerApplication.recommended_amount).toLocaleString()}</span></div>
                         )}
                         {selectedFarmerApplication.eligibility_reason && (
                           <div className="mfi-dashboard__farmer-detail-row mfi-dashboard__farmer-detail-row--block">
-                            <span>Reason</span>
+                            <span>{t('mfi.reason') || 'Reason'}</span>
                             <span className="mfi-dashboard__farmer-detail-reason">{selectedFarmerApplication.eligibility_reason}</span>
+                          </div>
+                        )}
+                        {selectedFarmerApplication.rejection_reason && (
+                          <div className="mfi-dashboard__farmer-detail-row mfi-dashboard__farmer-detail-row--block">
+                            <span>{t('mfi.finalReviewReason') || 'Final review reason'}</span>
+                            <span className="mfi-dashboard__farmer-detail-reason">{selectedFarmerApplication.rejection_reason}</span>
                           </div>
                         )}
                       </div>
@@ -676,20 +682,20 @@ export default function MicrofinanceDashboard() {
                       {/* Farming info */}
                       {(selectedFarmerApplication.farming_crops_or_activity || selectedFarmerApplication.farming_land_size_hectares != null) && (
                         <div className="mfi-dashboard__farmer-detail-section">
-                          <h4 className="mfi-dashboard__farmer-detail-section-title">Farming Information</h4>
-                          {selectedFarmerApplication.farming_crops_or_activity && <div className="mfi-dashboard__farmer-detail-row"><span>Crops / Activity</span><span>{selectedFarmerApplication.farming_crops_or_activity}</span></div>}
-                          {selectedFarmerApplication.farming_land_size_hectares != null && <div className="mfi-dashboard__farmer-detail-row"><span>Land size</span><span>{selectedFarmerApplication.farming_land_size_hectares} ha</span></div>}
-                          {selectedFarmerApplication.farming_season && <div className="mfi-dashboard__farmer-detail-row"><span>Season</span><span>{selectedFarmerApplication.farming_season}</span></div>}
-                          {selectedFarmerApplication.farming_estimated_yield != null && <div className="mfi-dashboard__farmer-detail-row"><span>Est. yield</span><span>{selectedFarmerApplication.farming_estimated_yield}</span></div>}
-                          {selectedFarmerApplication.farming_livestock && <div className="mfi-dashboard__farmer-detail-row"><span>Livestock</span><span>{selectedFarmerApplication.farming_livestock}</span></div>}
-                          {selectedFarmerApplication.farming_notes && <div className="mfi-dashboard__farmer-detail-row mfi-dashboard__farmer-detail-row--block"><span>Notes</span><span>{selectedFarmerApplication.farming_notes}</span></div>}
+                          <h4 className="mfi-dashboard__farmer-detail-section-title">{t('mfi.farmingInformation') || 'Farming Information'}</h4>
+                          {selectedFarmerApplication.farming_crops_or_activity && <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.cropsActivity') || 'Crops / Activity'}</span><span>{selectedFarmerApplication.farming_crops_or_activity}</span></div>}
+                          {selectedFarmerApplication.farming_land_size_hectares != null && <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.landSize') || 'Land size'}</span><span>{selectedFarmerApplication.farming_land_size_hectares} ha</span></div>}
+                          {selectedFarmerApplication.farming_season && <div className="mfi-dashboard__farmer-detail-row"><span>{t('farmer.season') || 'Season'}</span><span>{selectedFarmerApplication.farming_season}</span></div>}
+                          {selectedFarmerApplication.farming_estimated_yield != null && <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.estimatedYield') || 'Est. yield'}</span><span>{selectedFarmerApplication.farming_estimated_yield}</span></div>}
+                          {selectedFarmerApplication.farming_livestock && <div className="mfi-dashboard__farmer-detail-row"><span>{t('mfi.livestock') || 'Livestock'}</span><span>{selectedFarmerApplication.farming_livestock}</span></div>}
+                          {selectedFarmerApplication.farming_notes && <div className="mfi-dashboard__farmer-detail-row mfi-dashboard__farmer-detail-row--block"><span>{t('mfi.notes') || 'Notes'}</span><span>{selectedFarmerApplication.farming_notes}</span></div>}
                         </div>
                       )}
                     </div>
 
                     {/* Documents */}
                     <div className="mfi-dashboard__farmer-detail-section mfi-dashboard__farmer-detail-section--full">
-                      <h4 className="mfi-dashboard__farmer-detail-section-title">Submitted Documents</h4>
+                      <h4 className="mfi-dashboard__farmer-detail-section-title">{t('mfi.submittedDocuments') || 'Submitted Documents'}</h4>
                       {selectedFarmerApplication.documents?.length > 0 ? (
                         <div className="mfi-dashboard__farmer-docs-list">
                           {selectedFarmerApplication.documents.map((doc) => (
@@ -701,21 +707,21 @@ export default function MicrofinanceDashboard() {
                               </div>
                               {doc.file_url && (
                                 <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="mfi-dashboard__docs-link">
-                                  View / Download
+                                  {t('mfi.viewDownload') || 'View / Download'}
                                 </a>
                               )}
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="mfi-dashboard__empty" style={{ padding: '0.5rem 0' }}>No documents submitted yet.</p>
+                        <p className="mfi-dashboard__empty" style={{ padding: '0.5rem 0' }}>{t('mfi.noDocumentsSubmitted') || 'No documents submitted yet.'}</p>
                       )}
                     </div>
 
                     {/* Status history */}
                     {selectedFarmerApplication.status_history?.length > 0 && (
                       <div className="mfi-dashboard__farmer-detail-section mfi-dashboard__farmer-detail-section--full">
-                        <h4 className="mfi-dashboard__farmer-detail-section-title">Status History</h4>
+                        <h4 className="mfi-dashboard__farmer-detail-section-title">{t('mfi.statusHistory')}</h4>
                         <div className="mfi-dashboard__farmer-history">
                           {selectedFarmerApplication.status_history.map((h, idx) => (
                             <div key={idx} className="mfi-dashboard__farmer-history-item">
@@ -759,7 +765,7 @@ export default function MicrofinanceDashboard() {
                     <p className="mfi-dashboard__date">Application #{app.id}</p>
 
                     <div className="mfi-dashboard__messages">
-                      <span className="mfi-dashboard__tracker-title">Recent messages</span>
+                      <span className="mfi-dashboard__tracker-title">{t('mfi.recentMessages') || 'Recent messages'}</span>
                       {app.messages?.length ? (
                         <ul className="mfi-dashboard__messages-list">
                           {app.messages.map((msg) => (
@@ -770,16 +776,16 @@ export default function MicrofinanceDashboard() {
                           ))}
                         </ul>
                       ) : (
-                        <p className="mfi-dashboard__docs-empty">No messages yet.</p>
+                        <p className="mfi-dashboard__docs-empty">{t('mfi.noMessages') || 'No messages yet.'}</p>
                       )}
                     </div>
 
                     <div className="mfi-dashboard__update-status">
                       <label style={{ flex: 1 }}>
-                        <span className="mfi-dashboard__note-label">Message to farmer</span>
+                        <span className="mfi-dashboard__note-label">{t('mfi.messageToFarmer') || 'Message to farmer'}</span>
                         <input
                           type="text"
-                          placeholder="Request additional documents or provide updates"
+                          placeholder={t('mfi.messagePlaceholder') || 'Request additional documents or provide updates'}
                           value={messageForm[app.id]?.message ?? ''}
                           onChange={(e) => setMessageForm((prev) => ({
                             ...prev,

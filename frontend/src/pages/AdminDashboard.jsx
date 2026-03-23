@@ -21,6 +21,8 @@ const STATUS_BADGE = {
   documents_requested: 'badge--docs',
 };
 
+
+
 export default function AdminDashboard() {
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
@@ -46,9 +48,9 @@ export default function AdminDashboard() {
   const [statusSaved, setStatusSaved] = useState(false);
 
   const handleErr = (err) => {
-    if (err.status === 403) setError('Admin access required. Please log in as admin.');
-    else if (err.status === 401) setError('Session expired. Please log in again.');
-    else setError('Failed to load data. Check that the backend server is running.');
+    if (err.status === 403) setError(t('adminDashboard.errorAdminAccess') || 'Admin access required. Please log in as admin.');
+    else if (err.status === 401) setError(t('adminDashboard.errorSessionExpired') || 'Session expired. Please log in again.');
+    else setError(t('adminDashboard.errorLoadData') || 'Failed to load data. Check that the backend server is running.');
   };
 
   const fetchStats = async () => {
@@ -113,7 +115,7 @@ export default function AdminDashboard() {
       setStatusEdit(data.status || '');
       setRejectionEdit(data.rejection_reason || '');
     } catch (err) {
-      setDetailError('Could not load application detail.');
+      setDetailError(t('adminDashboard.errorLoadApplicationDetail') || 'Could not load application detail.');
       setSelectedApp(null);
     } finally {
       setDetailLoading(false);
@@ -139,7 +141,7 @@ export default function AdminDashboard() {
         prev.map((a) => (a.id === selectedApp.id ? { ...a, status: statusEdit } : a))
       );
     } catch {
-      setDetailError('Failed to update status.');
+      setDetailError(t('adminDashboard.errorUpdateStatus') || 'Failed to update status.');
     } finally {
       setStatusSaving(false);
     }
@@ -166,9 +168,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="dashboard-page admin-dashboard">
-      <DashboardTopBar title="Admin Dashboard" showSearch={false} />
+      <DashboardTopBar title={t('dashboard.adminTitle') || 'Admin dashboard'} showSearch={false} />
       <div className="dashboard-content">
-
         {/* Top action bar */}
         <div className="admin-dashboard__action-bar">
           <a
@@ -177,7 +178,7 @@ export default function AdminDashboard() {
             rel="noopener noreferrer"
             className="admin-dashboard__django-btn"
           >
-            Open Django Admin ↗
+            {t('adminDashboard.openDjangoAdmin') || 'Open Django Admin'} ↗
           </a>
           <button
             type="button"
@@ -185,7 +186,7 @@ export default function AdminDashboard() {
             onClick={fetchByTab}
             disabled={loading}
           >
-            {loading ? 'Loading…' : 'Refresh'}
+            {loading ? (t('adminDashboard.loading') || 'Loading…') : (t('adminDashboard.refresh') || 'Refresh')}
           </button>
         </div>
 
@@ -197,35 +198,35 @@ export default function AdminDashboard() {
             <span className="admin-dashboard__stat-icon">🌾</span>
             <div>
               <div className="admin-dashboard__stat-value">{farmerCount}</div>
-              <div className="admin-dashboard__stat-label">Farmers</div>
+              <div className="admin-dashboard__stat-label">{t('getStarted.farmers') || 'Farmers'}</div>
             </div>
           </div>
           <div className="admin-dashboard__stat-card admin-dashboard__stat-card--green">
             <span className="admin-dashboard__stat-icon">🏦</span>
             <div>
               <div className="admin-dashboard__stat-value">{mfiCount}</div>
-              <div className="admin-dashboard__stat-label">Microfinance Institutions</div>
+              <div className="admin-dashboard__stat-label">{t('adminDashboard.microfinanceInstitutions') || 'Microfinance Institutions'}</div>
             </div>
           </div>
           <div className="admin-dashboard__stat-card admin-dashboard__stat-card--orange">
             <span className="admin-dashboard__stat-icon">⏳</span>
             <div>
               <div className="admin-dashboard__stat-value">{pendingApps}</div>
-              <div className="admin-dashboard__stat-label">Pending Applications</div>
+              <div className="admin-dashboard__stat-label">{t('adminDashboard.pendingApplications') || 'Pending Applications'}</div>
             </div>
           </div>
           <div className="admin-dashboard__stat-card admin-dashboard__stat-card--teal">
             <span className="admin-dashboard__stat-icon">✅</span>
             <div>
               <div className="admin-dashboard__stat-value">{approvedApps}</div>
-              <div className="admin-dashboard__stat-label">Approved</div>
+              <div className="admin-dashboard__stat-label">{t('tracker.approved') || 'Approved'}</div>
             </div>
           </div>
           <div className="admin-dashboard__stat-card admin-dashboard__stat-card--red">
             <span className="admin-dashboard__stat-icon">❌</span>
             <div>
               <div className="admin-dashboard__stat-value">{rejectedApps}</div>
-              <div className="admin-dashboard__stat-label">Rejected</div>
+              <div className="admin-dashboard__stat-label">{t('tracker.rejected') || 'Rejected'}</div>
             </div>
           </div>
         </div>
@@ -233,38 +234,38 @@ export default function AdminDashboard() {
         {/* ── OVERVIEW TAB ── */}
         {activeTab === 'overview' && (
           <section className="admin-dashboard__section" aria-labelledby="overview-heading">
-            <h2 id="overview-heading" className="admin-dashboard__section-title">Platform Overview</h2>
+            <h2 id="overview-heading" className="admin-dashboard__section-title">{t('adminDashboard.platformOverview') || 'Platform Overview'}</h2>
             {stats ? (
               <div className="admin-dashboard__overview-grid">
                 <div className="admin-dashboard__overview-card">
-                  <h3 className="admin-dashboard__overview-card-title">Users</h3>
+                  <h3 className="admin-dashboard__overview-card-title">{t('dashboard.users') || 'Users'}</h3>
                   <ul className="admin-dashboard__overview-list">
-                    <li><span>Farmers</span><strong>{stats.users?.farmers ?? 0}</strong></li>
-                    <li><span>Microfinance</span><strong>{stats.users?.microfinance ?? 0}</strong></li>
-                    <li className="admin-dashboard__overview-list-total"><span>Total</span><strong>{(stats.users?.farmers ?? 0) + (stats.users?.microfinance ?? 0)}</strong></li>
+                    <li><span>{t('getStarted.farmers') || 'Farmers'}</span><strong>{stats.users?.farmers ?? 0}</strong></li>
+                    <li><span>{t('getStarted.microfinances') || 'Microfinance'}</span><strong>{stats.users?.microfinance ?? 0}</strong></li>
+                    <li className="admin-dashboard__overview-list-total"><span>{t('adminDashboard.total') || 'Total'}</span><strong>{(stats.users?.farmers ?? 0) + (stats.users?.microfinance ?? 0)}</strong></li>
                   </ul>
                 </div>
                 <div className="admin-dashboard__overview-card">
-                  <h3 className="admin-dashboard__overview-card-title">Loan Applications</h3>
+                  <h3 className="admin-dashboard__overview-card-title">{t('adminDashboard.loanApplications') || 'Loan Applications'}</h3>
                   <ul className="admin-dashboard__overview-list">
-                    <li><span>Pending</span><strong className="text-orange">{stats.applications?.pending ?? 0}</strong></li>
-                    <li><span>Approved</span><strong className="text-green">{stats.applications?.approved ?? 0}</strong></li>
-                    <li><span>Rejected</span><strong className="text-red">{stats.applications?.rejected ?? 0}</strong></li>
-                    <li className="admin-dashboard__overview-list-total"><span>Total</span><strong>{(stats.applications?.pending ?? 0) + (stats.applications?.approved ?? 0) + (stats.applications?.rejected ?? 0)}</strong></li>
+                    <li><span>{t('tracker.pending') || 'Pending'}</span><strong className="text-orange">{stats.applications?.pending ?? 0}</strong></li>
+                    <li><span>{t('tracker.approved') || 'Approved'}</span><strong className="text-green">{stats.applications?.approved ?? 0}</strong></li>
+                    <li><span>{t('tracker.rejected') || 'Rejected'}</span><strong className="text-red">{stats.applications?.rejected ?? 0}</strong></li>
+                    <li className="admin-dashboard__overview-list-total"><span>{t('adminDashboard.total') || 'Total'}</span><strong>{(stats.applications?.pending ?? 0) + (stats.applications?.approved ?? 0) + (stats.applications?.rejected ?? 0)}</strong></li>
                   </ul>
                 </div>
                 <div className="admin-dashboard__overview-card">
-                  <h3 className="admin-dashboard__overview-card-title">Quick Links</h3>
+                  <h3 className="admin-dashboard__overview-card-title">{t('adminDashboard.quickLinks') || 'Quick Links'}</h3>
                   <ul className="admin-dashboard__overview-list admin-dashboard__overview-links">
-                    <li><a href={`${BACKEND_URL}/admin/`} target="_blank" rel="noopener noreferrer">Django Admin Panel ↗</a></li>
-                    <li><a href={`${BACKEND_URL}/api/docs/`} target="_blank" rel="noopener noreferrer">API Documentation ↗</a></li>
-                    <li><a href={`${BACKEND_URL}/admin/auth/user/`} target="_blank" rel="noopener noreferrer">Manage Users ↗</a></li>
-                    <li><a href={`${BACKEND_URL}/admin/api/loanapplication/`} target="_blank" rel="noopener noreferrer">All Loan Applications ↗</a></li>
+                    <li><a href={`${BACKEND_URL}/admin/`} target="_blank" rel="noopener noreferrer">{t('adminDashboard.djangoAdminPanel') || 'Django Admin Panel'} ↗</a></li>
+                    <li><a href={`${BACKEND_URL}/api/docs/`} target="_blank" rel="noopener noreferrer">{t('adminDashboard.apiDocumentation') || 'API Documentation'} ↗</a></li>
+                    <li><a href={`${BACKEND_URL}/admin/auth/user/`} target="_blank" rel="noopener noreferrer">{t('adminDashboard.manageUsers') || 'Manage Users'} ↗</a></li>
+                    <li><a href={`${BACKEND_URL}/admin/api/loanapplication/`} target="_blank" rel="noopener noreferrer">{t('adminDashboard.allLoanApplications') || 'All Loan Applications'} ↗</a></li>
                   </ul>
                 </div>
               </div>
             ) : (
-              <p className="admin-dashboard__empty">{loading ? 'Loading overview…' : 'Could not load stats.'}</p>
+              <p className="admin-dashboard__empty">{loading ? (t('adminDashboard.loadingOverview') || 'Loading overview…') : (t('adminDashboard.couldNotLoadStats') || 'Could not load stats.')}</p>
             )}
           </section>
         )}
@@ -272,20 +273,20 @@ export default function AdminDashboard() {
         {/* ── APPLICATIONS TAB ── */}
         {activeTab === 'applications' && (
           <section className="admin-dashboard__section" aria-labelledby="apps-heading">
-            <h2 id="apps-heading" className="admin-dashboard__section-title">All Loan Applications</h2>
+            <h2 id="apps-heading" className="admin-dashboard__section-title">{t('adminDashboard.allLoanApplications') || 'All Loan Applications'}</h2>
             <div className="admin-dashboard__filters">
-              <label htmlFor="app-status-filter">Status:</label>
+              <label htmlFor="app-status-filter">{t('adminDashboard.status') || 'Status'}:</label>
               <select
                 id="app-status-filter"
                 value={appStatusFilter}
                 onChange={(e) => setAppStatusFilter(e.target.value)}
               >
-                <option value="">All</option>
-                <option value="pending">Pending</option>
-                <option value="under_review">Under Review</option>
-                <option value="documents_requested">Documents Requested</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
+                <option value="">{t('adminDashboard.all') || 'All'}</option>
+                <option value="pending">{t('tracker.pending') || 'Pending'}</option>
+                <option value="under_review">{t('mfi.underReview') || 'Under Review'}</option>
+                <option value="documents_requested">{t('mfi.documentsRequested') || 'Documents Requested'}</option>
+                <option value="approved">{t('tracker.approved') || 'Approved'}</option>
+                <option value="rejected">{t('tracker.rejected') || 'Rejected'}</option>
               </select>
             </div>
             {applications.length > 0 ? (
@@ -294,12 +295,12 @@ export default function AdminDashboard() {
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>Applicant</th>
-                      <th>Amount (RWF)</th>
-                      <th>Duration</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                      <th>Details</th>
+                      <th>{t('adminDashboard.applicant') || 'Applicant'}</th>
+                      <th>{t('adminDashboard.amountRwf') || 'Amount (RWF)'}</th>
+                      <th>{t('farmer.durationLabel') || 'Duration'}</th>
+                      <th>{t('adminDashboard.status') || 'Status'}</th>
+                      <th>{t('mfi.dateLabel') || 'Date'}</th>
+                      <th>{t('adminDashboard.details') || 'Details'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -321,7 +322,7 @@ export default function AdminDashboard() {
                             className="admin-dashboard__view-btn"
                             onClick={() => openDetail(a.id)}
                           >
-                            View ↗
+                            {(t('mfi.view') || 'View')} ↗
                           </button>
                         </td>
                       </tr>
@@ -330,7 +331,7 @@ export default function AdminDashboard() {
                 </table>
               </div>
             ) : (
-              <p className="admin-dashboard__empty">{loading ? 'Loading…' : 'No applications found.'}</p>
+              <p className="admin-dashboard__empty">{loading ? (t('adminDashboard.loading') || 'Loading…') : (t('adminDashboard.noApplicationsFound') || 'No applications found.')}</p>
             )}
 
             {/* ── Application Detail Drawer ── */}
@@ -341,9 +342,9 @@ export default function AdminDashboard() {
                   onClick={(e) => e.stopPropagation()}
                   aria-labelledby="detail-heading"
                 >
-                  <button type="button" className="admin-dashboard__detail-close" onClick={closeDetail}>✕ Close</button>
+                  <button type="button" className="admin-dashboard__detail-close" onClick={closeDetail}>✕ {t('adminDashboard.close') || 'Close'}</button>
 
-                  {detailLoading && <p className="admin-dashboard__empty">Loading application…</p>}
+                  {detailLoading && <p className="admin-dashboard__empty">{t('adminDashboard.loadingApplication') || 'Loading application…'}</p>}
                   {detailError && <p className="admin-dashboard__error">{detailError}</p>}
 
                   {selectedApp && !detailLoading && (
@@ -354,48 +355,48 @@ export default function AdminDashboard() {
 
                       {/* ── Applicant Info ── */}
                       <div className="admin-dashboard__detail-section">
-                        <h3 className="admin-dashboard__detail-group-title">Applicant</h3>
+                        <h3 className="admin-dashboard__detail-group-title">{t('adminDashboard.applicant') || 'Applicant'}</h3>
                         <dl className="admin-dashboard__detail-grid">
-                          <dt>Username</dt><dd>{selectedApp.user_email}</dd>
-                          <dt>Full Name</dt><dd>{selectedApp.user_name || '—'}</dd>
-                          <dt>Age</dt><dd>{selectedApp.age}</dd>
-                          <dt>Marital Status</dt><dd>{selectedApp.marital_status}</dd>
-                          <dt>Education</dt><dd>{selectedApp.education_level}</dd>
-                          <dt>Employment</dt><dd>{selectedApp.employment_status}</dd>
+                          <dt>{t('adminDashboard.username') || 'Username'}</dt><dd>{selectedApp.user_email}</dd>
+                          <dt>{t('farmer.fullName') || 'Full Name'}</dt><dd>{selectedApp.user_name || '—'}</dd>
+                          <dt>{t('farmer.age') || 'Age'}</dt><dd>{selectedApp.age}</dd>
+                          <dt>{t('farmer.maritalStatus') || 'Marital Status'}</dt><dd>{selectedApp.marital_status}</dd>
+                          <dt>{t('farmer.education') || 'Education'}</dt><dd>{selectedApp.education_level}</dd>
+                          <dt>{t('mfi.employment') || 'Employment'}</dt><dd>{selectedApp.employment_status}</dd>
                         </dl>
                       </div>
 
                       {/* ── Loan Details ── */}
                       <div className="admin-dashboard__detail-section">
-                        <h3 className="admin-dashboard__detail-group-title">Loan Details</h3>
+                        <h3 className="admin-dashboard__detail-group-title">{t('adminDashboard.loanDetails') || 'Loan Details'}</h3>
                         <dl className="admin-dashboard__detail-grid">
-                          <dt>Amount Requested</dt><dd><strong>RWF {Number(selectedApp.loan_amount_requested).toLocaleString()}</strong></dd>
-                          <dt>Duration</dt><dd>{selectedApp.loan_duration_months} months</dd>
-                          <dt>Purpose</dt><dd>{selectedApp.loan_purpose}</dd>
-                          <dt>Annual Income</dt><dd>RWF {Number(selectedApp.annual_income).toLocaleString()}</dd>
-                          <dt>Credit Score</dt><dd>{selectedApp.credit_score}</dd>
-                          <dt>Applied On</dt><dd>{selectedApp.created_at ? new Date(selectedApp.created_at).toLocaleString() : '—'}</dd>
+                          <dt>{t('mfi.amountRequested') || 'Amount Requested'}</dt><dd><strong>RWF {Number(selectedApp.loan_amount_requested).toLocaleString()}</strong></dd>
+                          <dt>{t('farmer.durationLabel') || 'Duration'}</dt><dd>{selectedApp.loan_duration_months} {t('farmer.months') || 'months'}</dd>
+                          <dt>{t('farmer.purpose') || 'Purpose'}</dt><dd>{selectedApp.loan_purpose}</dd>
+                          <dt>{t('mfi.annualIncome') || 'Annual Income'}</dt><dd>RWF {Number(selectedApp.annual_income).toLocaleString()}</dd>
+                          <dt>{t('farmer.creditScore') || 'Credit Score'}</dt><dd>{selectedApp.credit_score}</dd>
+                          <dt>{t('adminDashboard.appliedOn') || 'Applied On'}</dt><dd>{selectedApp.created_at ? new Date(selectedApp.created_at).toLocaleString() : '—'}</dd>
                         </dl>
                       </div>
 
                       {/* ── Farming Context ── */}
                       <div className="admin-dashboard__detail-section">
-                        <h3 className="admin-dashboard__detail-group-title">Farming Context</h3>
+                        <h3 className="admin-dashboard__detail-group-title">{t('adminDashboard.farmingContext') || 'Farming Context'}</h3>
                         <dl className="admin-dashboard__detail-grid">
-                          <dt>Crops / Activity</dt><dd>{selectedApp.farming_crops_or_activity || '—'}</dd>
-                          <dt>Land Size</dt><dd>{selectedApp.farming_land_size_hectares != null ? `${selectedApp.farming_land_size_hectares} ha` : '—'}</dd>
-                          <dt>Season</dt><dd>{selectedApp.farming_season || '—'}</dd>
-                          <dt>Est. Yield (kg)</dt><dd>{selectedApp.farming_estimated_yield != null ? Number(selectedApp.farming_estimated_yield).toLocaleString() : '—'}</dd>
-                          <dt>Livestock</dt><dd>{selectedApp.farming_livestock || '—'}</dd>
-                          {selectedApp.farming_notes && (<><dt>Notes</dt><dd>{selectedApp.farming_notes}</dd></>)}
+                          <dt>{t('mfi.cropsActivity') || 'Crops / Activity'}</dt><dd>{selectedApp.farming_crops_or_activity || '—'}</dd>
+                          <dt>{t('mfi.landSize') || 'Land Size'}</dt><dd>{selectedApp.farming_land_size_hectares != null ? `${selectedApp.farming_land_size_hectares} ha` : '—'}</dd>
+                          <dt>{t('farmer.season') || 'Season'}</dt><dd>{selectedApp.farming_season || '—'}</dd>
+                          <dt>{t('adminDashboard.estimatedYieldKg') || 'Est. Yield (kg)'}</dt><dd>{selectedApp.farming_estimated_yield != null ? Number(selectedApp.farming_estimated_yield).toLocaleString() : '—'}</dd>
+                          <dt>{t('mfi.livestock') || 'Livestock'}</dt><dd>{selectedApp.farming_livestock || '—'}</dd>
+                          {selectedApp.farming_notes && (<><dt>{t('mfi.notes') || 'Notes'}</dt><dd>{selectedApp.farming_notes}</dd></>)}
                         </dl>
                       </div>
 
                       {/* ── AI Assessment ── */}
                       <div className="admin-dashboard__detail-section">
-                        <h3 className="admin-dashboard__detail-group-title">AI Assessment</h3>
+                        <h3 className="admin-dashboard__detail-group-title">{t('mfi.aiAssessment') || 'AI Assessment'}</h3>
                         <dl className="admin-dashboard__detail-grid">
-                          <dt>Eligibility</dt>
+                          <dt>{t('farmer.eligibilityLabel') || 'Eligibility'}</dt>
                           <dd>
                             {selectedApp.eligibility_approved === null ? '—' : (
                               <span className={`admin-dashboard__badge ${selectedApp.eligibility_approved ? 'badge--approved' : 'badge--rejected'}`}>
@@ -403,7 +404,7 @@ export default function AdminDashboard() {
                               </span>
                             )}
                           </dd>
-                          <dt>Risk Score</dt>
+                          <dt>{t('farmer.riskScoreLabel') || 'Risk Score'}</dt>
                           <dd>
                             {selectedApp.risk_score != null ? (
                               <span className={`admin-dashboard__badge ${
@@ -415,16 +416,16 @@ export default function AdminDashboard() {
                               </span>
                             ) : '—'}
                           </dd>
-                          <dt>Recommended Amount</dt>
+                          <dt>{t('mfi.recommendedAmount') || 'Recommended Amount'}</dt>
                           <dd>{selectedApp.recommended_amount != null ? `RWF ${Number(selectedApp.recommended_amount).toLocaleString()}` : '—'}</dd>
-                          <dt>Eligibility Reason</dt>
+                          <dt>{t('adminDashboard.eligibilityReason') || 'Eligibility Reason'}</dt>
                           <dd className="admin-dashboard__detail-reason">{selectedApp.eligibility_reason || '—'}</dd>
                         </dl>
                       </div>
 
                       {/* ── Documents ── */}
                       <div className="admin-dashboard__detail-section">
-                        <h3 className="admin-dashboard__detail-group-title">Submitted Documents</h3>
+                        <h3 className="admin-dashboard__detail-group-title">{t('mfi.submittedDocuments') || 'Submitted Documents'}</h3>
                         {selectedApp.documents?.length > 0 ? (
                           <ul className="admin-dashboard__doc-list">
                             {selectedApp.documents.map((doc) => (
@@ -440,7 +441,7 @@ export default function AdminDashboard() {
                                     View / Download ↗
                                   </a>
                                 ) : (
-                                  <span className="admin-dashboard__doc-missing">No file</span>
+                                  <span className="admin-dashboard__doc-missing">{t('adminDashboard.noFile') || 'No file'}</span>
                                 )}
                                 <span className="admin-dashboard__doc-date">
                                   {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : ''}
@@ -449,35 +450,35 @@ export default function AdminDashboard() {
                             ))}
                           </ul>
                         ) : (
-                          <p className="admin-dashboard__empty admin-dashboard__empty--sm">No documents uploaded yet.</p>
+                          <p className="admin-dashboard__empty admin-dashboard__empty--sm">{t('adminDashboard.noDocumentsUploaded') || 'No documents uploaded yet.'}</p>
                         )}
                       </div>
 
                       {/* ── Status Update ── */}
                       <div className="admin-dashboard__detail-section admin-dashboard__detail-section--action">
-                        <h3 className="admin-dashboard__detail-group-title">Update Status</h3>
+                        <h3 className="admin-dashboard__detail-group-title">{t('mfi.updateStatus') || 'Update Status'}</h3>
                         <div className="admin-dashboard__status-form">
-                          <label htmlFor="status-edit">New Status</label>
+                          <label htmlFor="status-edit">{t('adminDashboard.newStatus') || 'New Status'}</label>
                           <select
                             id="status-edit"
                             value={statusEdit}
                             onChange={(e) => setStatusEdit(e.target.value)}
                           >
-                            <option value="pending">Pending</option>
-                            <option value="under_review">Under Review</option>
-                            <option value="documents_requested">Documents Requested</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
+                            <option value="pending">{t('tracker.pending') || 'Pending'}</option>
+                            <option value="under_review">{t('mfi.underReview') || 'Under Review'}</option>
+                            <option value="documents_requested">{t('mfi.documentsRequested') || 'Documents Requested'}</option>
+                            <option value="approved">{t('tracker.approved') || 'Approved'}</option>
+                            <option value="rejected">{t('tracker.rejected') || 'Rejected'}</option>
                           </select>
                           {statusEdit === 'rejected' && (
                             <>
-                              <label htmlFor="rejection-edit">Rejection Reason</label>
+                              <label htmlFor="rejection-edit">{t('adminDashboard.rejectionReason') || 'Rejection Reason'}</label>
                               <textarea
                                 id="rejection-edit"
                                 value={rejectionEdit}
                                 onChange={(e) => setRejectionEdit(e.target.value)}
                                 rows={3}
-                                placeholder="State the reason for rejection…"
+                                placeholder={t('adminDashboard.rejectionReasonPlaceholder') || 'State the reason for rejection…'}
                               />
                             </>
                           )}
@@ -487,16 +488,16 @@ export default function AdminDashboard() {
                             onClick={saveStatus}
                             disabled={statusSaving}
                           >
-                            {statusSaving ? 'Saving…' : 'Save Status'}
+                            {statusSaving ? (t('adminDashboard.saving') || 'Saving…') : (t('adminDashboard.saveStatus') || 'Save Status')}
                           </button>
                           {statusSaved && (
-                            <span className="admin-dashboard__saved-msg">✓ Status updated</span>
+                            <span className="admin-dashboard__saved-msg">✓ {t('adminDashboard.statusUpdated') || 'Status updated'}</span>
                           )}
                         </div>
                         {selectedApp.reviewed_by && (
                           <p className="admin-dashboard__review-meta">
-                            Last reviewed by <strong>{selectedApp.reviewed_by}</strong>
-                            {selectedApp.reviewed_at ? ` on ${new Date(selectedApp.reviewed_at).toLocaleString()}` : ''}
+                            {t('adminDashboard.lastReviewedBy') || 'Last reviewed by'} <strong>{selectedApp.reviewed_by}</strong>
+                            {selectedApp.reviewed_at ? ` ${t('adminDashboard.on') || 'on'} ${new Date(selectedApp.reviewed_at).toLocaleString()}` : ''}
                           </p>
                         )}
                       </div>
@@ -511,18 +512,18 @@ export default function AdminDashboard() {
         {/* ── USERS TAB ── */}
         {activeTab === 'users' && (
           <section className="admin-dashboard__section" aria-labelledby="users-heading">
-            <h2 id="users-heading" className="admin-dashboard__section-title">Registered Users</h2>
+            <h2 id="users-heading" className="admin-dashboard__section-title">{t('adminDashboard.registeredUsers') || 'Registered Users'}</h2>
             <div className="admin-dashboard__filters">
-              <label htmlFor="role-filter">Role:</label>
+              <label htmlFor="role-filter">{t('farmer.role') || 'Role'}:</label>
               <select
                 id="role-filter"
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
               >
-                <option value="">All</option>
-                <option value="farmer">Farmer</option>
-                <option value="microfinance">Microfinance</option>
-                <option value="admin">Admin</option>
+                <option value="">{t('adminDashboard.all') || 'All'}</option>
+                <option value="farmer">{t('getStarted.farmers') || 'Farmer'}</option>
+                <option value="microfinance">{t('getStarted.microfinances') || 'Microfinance'}</option>
+                <option value="admin">{t('dashboard.adminTitle') || 'Admin'}</option>
               </select>
             </div>
             {users.length > 0 ? (
@@ -530,10 +531,10 @@ export default function AdminDashboard() {
                 <table className="admin-dashboard__table">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Email / Username</th>
-                      <th>Name</th>
-                      <th>Role</th>
+                      <th>{t('adminDashboard.id') || 'ID'}</th>
+                      <th>{t('adminDashboard.emailOrUsername') || 'Email / Username'}</th>
+                      <th>{t('farmer.name') || 'Name'}</th>
+                      <th>{t('farmer.role') || 'Role'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -553,7 +554,7 @@ export default function AdminDashboard() {
                 </table>
               </div>
             ) : (
-              <p className="admin-dashboard__empty">{loading ? 'Loading…' : 'No users found.'}</p>
+              <p className="admin-dashboard__empty">{loading ? (t('adminDashboard.loading') || 'Loading…') : (t('adminDashboard.noUsersFound') || 'No users found.')}</p>
             )}
           </section>
         )}
@@ -561,19 +562,19 @@ export default function AdminDashboard() {
         {/* ── ACTIVITY TAB ── */}
         {activeTab === 'activity' && (
           <section className="admin-dashboard__section" aria-labelledby="activity-heading">
-            <h2 id="activity-heading" className="admin-dashboard__section-title">Site Activity Log</h2>
+            <h2 id="activity-heading" className="admin-dashboard__section-title">{t('adminDashboard.siteActivityLog') || 'Site Activity Log'}</h2>
             <p className="admin-dashboard__hint">
-              Tracks when visitors open the Get Started modal or click Register / Login.
+              {t('adminDashboard.activityHint') || 'Tracks when visitors open the Get Started modal or click Register / Login.'}
             </p>
             {activity ? (
               <div className="admin-dashboard__table-wrap">
                 <table className="admin-dashboard__table">
                   <thead>
                     <tr>
-                      <th>Event</th>
-                      <th>Role</th>
-                      <th>IP Address</th>
-                      <th>Time</th>
+                      <th>{t('adminDashboard.event') || 'Event'}</th>
+                      <th>{t('farmer.role') || 'Role'}</th>
+                      <th>{t('adminDashboard.ipAddress') || 'IP Address'}</th>
+                      <th>{t('adminDashboard.time') || 'Time'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -588,11 +589,11 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
                 {(activity.events?.length || 0) === 0 && (
-                  <p className="admin-dashboard__empty">No activity events yet.</p>
+                  <p className="admin-dashboard__empty">{t('adminDashboard.noActivityEvents') || 'No activity events yet.'}</p>
                 )}
               </div>
             ) : (
-              <p className="admin-dashboard__empty">{loading ? 'Loading…' : 'No activity data.'}</p>
+              <p className="admin-dashboard__empty">{loading ? (t('adminDashboard.loading') || 'Loading…') : (t('adminDashboard.noActivityData') || 'No activity data.')}</p>
             )}
           </section>
         )}
