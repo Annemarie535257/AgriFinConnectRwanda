@@ -21,7 +21,7 @@ ALLOWED_HOSTS = [
     _normalize_host(h)
     for h in os.environ.get(
         'DJANGO_ALLOWED_HOSTS',
-        'localhost,127.0.0.1,agrifinconnect.online,www.agrifinconnect.online',
+        'localhost,127.0.0.1,agrifinconnect.online,www.agrifinconnect.online,video.kandaassist.com',
     ).split(',')
     if _normalize_host(h)
 ]
@@ -114,6 +114,7 @@ else:
         'http://127.0.0.1:3000',
         'https://agrifinconnect.online',  # Production
         'https://www.agrifinconnect.online',
+        'https://video.kandaassist.com',
     ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -132,6 +133,7 @@ else:
         'http://127.0.0.1:3000',
         'https://agrifinconnect.online',
         'https://www.agrifinconnect.online',
+        'https://video.kandaassist.com',
     ]
 
 # Static files (WhiteNoise for production)
