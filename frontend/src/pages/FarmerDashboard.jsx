@@ -283,17 +283,41 @@ export default function FarmerDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [profileRes, appsRes, loansRes, repayRes] = await Promise.all([
-        getFarmerProfile().catch(() => null),
-        getFarmerApplications().catch(() => ({ applications: [] })),
-        getFarmerLoans().catch(() => ({ loans: [] })),
-        getFarmerRepayments().catch(() => ({ repayments: [] })),
+      const [profileResult, appsResult, loansResult, repaymentsResult] = await Promise.allSettled([
+        getFarmerProfile(),
+        getFarmerApplications(),
+        getFarmerLoans(),
+        getFarmerRepayments(),
       ]);
-      if (profileRes) setProfile(profileRes);
-      if (appsRes?.applications) setApplications(appsRes.applications);
-      if (loansRes?.loans) setLoans(loansRes.loans);
-      if (repayRes?.repayments) setRepayments(repayRes.repayments);
-      if (repayRes?.loans) setRepaymentLoans(repayRes.loans);
+
+      if (profileResult.status === 'fulfilled' && profileResult.value) {
+        setProfile(profileResult.value);
+      }
+
+      if (appsResult.status === 'fulfilled') {
+        setApplications(appsResult.value?.applications || []);
+      }
+
+      if (loansResult.status === 'fulfilled') {
+        setLoans(loansResult.value?.loans || []);
+      }
+
+      if (repaymentsResult.status === 'fulfilled') {
+        setRepayments(repaymentsResult.value?.repayments || []);
+        setRepaymentLoans(repaymentsResult.value?.loans || []);
+      }
+
+      const failures = [profileResult, appsResult, loansResult, repaymentsResult].filter((r) => r.status === 'rejected');
+      if (failures.length > 0) {
+        const firstError = failures[0].reason || {};
+        const firstErrorMessage =
+          firstError?.body?.error
+          || firstError?.body?.detail
+          || firstError?.message
+          || t('farmer.errorLoadData')
+          || 'Failed to load data';
+        setError(firstErrorMessage);
+      }
     } catch (err) {
       setError(err.body?.error || err.message || t('farmer.errorLoadData') || 'Failed to load data');
     } finally {
