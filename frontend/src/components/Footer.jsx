@@ -7,6 +7,7 @@ const FOOTER_NAV = [
   { key: 'about', to: '/#about' },
   { key: 'services', to: '/#our-services' },
   { key: 'contact', to: '/#contact' },
+  { key: 'legal', to: '/legal' },
 ];
 
 // Show a subset of the core services from the main services section

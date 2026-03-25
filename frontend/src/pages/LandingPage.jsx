@@ -7,6 +7,7 @@ import ContactSection from '../components/ContactSection';
 import Footer from '../components/Footer';
 import BackToTop from '../components/BackToTop';
 import FloatingChatbot from '../components/FloatingChatbot';
+import LegalGate from '../components/LegalGate';
 import '../App.css';
 
 
@@ -14,6 +15,7 @@ import '../App.css';
 export default function LandingPage() {
   return (
     <div className="app landing-layout">
+      <LegalGate />
       <Header />
       <main className="landing-main" aria-label="AgriFinConnect Rwanda landing content">
         <Hero />

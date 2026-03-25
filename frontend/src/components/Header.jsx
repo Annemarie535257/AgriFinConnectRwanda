@@ -9,6 +9,7 @@ const NAV_KEYS = [
   { key: 'about', to: '/', hash: '#about' },
   { key: 'services', to: '/', hash: '#our-services' },
   { key: 'contact', to: '/', hash: '#contact' },
+  { key: 'legal', to: '/legal' },
 ];
 
 export default function Header() {
