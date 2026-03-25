@@ -58,13 +58,11 @@ API base: **http://localhost:8000/api/**
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auth/register/` | Register (body: `email`, `password`, `role`: `farmer` \| `microfinance`, optional `name`) |
-| POST | `/api/auth/verify-registration-otp/` | Verify farmer registration OTP (body: `email`, `otp`) |
-| POST | `/api/auth/resend-registration-otp/` | Resend farmer OTP (body: `email`) |
 | POST | `/api/auth/login/` | Login (body: `email`, `password`). Returns `token` + `user` (id, email, role). |
 | POST | `/api/auth/forgot-password/` | Request password reset (body: `email`). Sends reset link to email. |
 | POST | `/api/auth/reset-password/` | Set new password (body: `token`, `new_password`). Token from email link. |
 
-### Real email delivery (OTP + password reset)
+### Real email delivery (password reset)
 
 By default in local development, Django uses the console email backend, so emails appear in terminal logs.
 To send real emails, configure SMTP environment variables:

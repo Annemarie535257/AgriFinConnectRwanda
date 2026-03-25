@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { languageNames } from '../translations';
-import { register, login, verifyRegistrationOtp, resendRegistrationOtp } from '../api/client';
+import { register, login } from '../api/client';
 import { logGetStartedActivity } from '../api/client';
 import FloatingChatbot from '../components/FloatingChatbot';
 import '../App.css';
@@ -27,18 +27,7 @@ export default function GetStartedPage() {
   const handleRegister = async (role, { email, password, name }) => {
     logGetStartedActivity('register_clicked', role + 's');
     try {
-      const data = await register({ email, password, role, name });
-      if (role === 'farmer' && data?.requires_otp) {
-        const debugOtpText = data?.otp_debug
-          ? ` (${t('getStarted.otpDebugPrefix')} ${data.otp_debug})`
-          : '';
-        return {
-          success: true,
-          requiresOtp: true,
-          email: data.email || email,
-          message: (data.message || t('getStarted.otpSent')) + debugOtpText,
-        };
-      }
+      await register({ email, password, role, name });
       if (role === 'farmer') setFarmerMode('login');
       else setMicrofinanceMode('login');
       return { success: true, message: t('getStarted.successRegister') };
@@ -68,10 +57,6 @@ export default function GetStartedPage() {
       return { success: true };
     } catch (err) {
       if (err.status === 401) {
-        const msg = err?.body?.error || '';
-        if (String(msg).toLowerCase().includes('verify') || String(msg).toLowerCase().includes('otp')) {
-          return { success: false, error: t('getStarted.errorOtpRequired') };
-        }
         return { success: false, error: t('getStarted.errorInvalidCredentials') };
       }
       if (err.status === 400 && err.body) {
@@ -81,33 +66,6 @@ export default function GetStartedPage() {
         return { success: false, error: msg };
       }
       return { success: false, error: t('getStarted.errorGeneric') };
-    }
-  };
-
-  const handleVerifyFarmerOtp = async ({ email, otp }) => {
-    try {
-      await verifyRegistrationOtp({ email, otp });
-      setFarmerMode('login');
-      return { success: true, message: t('getStarted.otpVerified') };
-    } catch (err) {
-      const msg = typeof err.body === 'object' ? (err.body.error || err.body.message) : err.body;
-      return { success: false, error: msg || t('getStarted.errorOtpInvalid') };
-    }
-  };
-
-  const handleResendFarmerOtp = async ({ email }) => {
-    try {
-      const data = await resendRegistrationOtp({ email });
-      const debugOtpText = data?.otp_debug
-        ? ` (${t('getStarted.otpDebugPrefix')} ${data.otp_debug})`
-        : '';
-      return {
-        success: true,
-        message: (data.message || t('getStarted.otpResent')) + debugOtpText,
-      };
-    } catch (err) {
-      const msg = typeof err.body === 'object' ? (err.body.error || err.body.message) : err.body;
-      return { success: false, error: msg || t('getStarted.errorGeneric') };
     }
   };
 
@@ -147,8 +105,6 @@ export default function GetStartedPage() {
                 onModeChange={setFarmerMode}
                 onRegister={handleRegister}
                 onLogin={handleLogin}
-                onVerifyFarmerOtp={handleVerifyFarmerOtp}
-                onResendFarmerOtp={handleResendFarmerOtp}
                 t={t}
               />
             </section>
@@ -184,12 +140,10 @@ export default function GetStartedPage() {
   );
 }
 
-function AuthForms({ role, mode, onModeChange, onRegister, onLogin, onVerifyFarmerOtp, onResendFarmerOtp, t, loginOnly = false }) {
+function AuthForms({ role, mode, onModeChange, onRegister, onLogin, t, loginOnly = false }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpPendingEmail, setOtpPendingEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [isError, setIsError] = useState(false);
@@ -198,8 +152,6 @@ function AuthForms({ role, mode, onModeChange, onRegister, onLogin, onVerifyFarm
     setEmail('');
     setPassword('');
     setName('');
-    setOtp('');
-    setOtpPendingEmail('');
     setMessage(null);
   };
 
@@ -214,9 +166,7 @@ function AuthForms({ role, mode, onModeChange, onRegister, onLogin, onVerifyFarm
     setLoading(true);
     setMessage(null);
     let result;
-    if (mode === 'register' && role === 'farmer' && otpPendingEmail) {
-      result = await onVerifyFarmerOtp({ email: otpPendingEmail, otp });
-    } else if (mode === 'register') {
+    if (mode === 'register') {
       result = await onRegister(role, { email: email.trim(), password, name: name.trim() });
     } else {
       result = await onLogin(role, { email: email.trim(), password });
@@ -225,26 +175,13 @@ function AuthForms({ role, mode, onModeChange, onRegister, onLogin, onVerifyFarm
     if (result.success) {
       setMessage(result.message || null);
       setIsError(false);
-      if (result.requiresOtp) {
-        setOtpPendingEmail(result.email || email.trim());
-        setOtp('');
-      } else if (mode === 'register') {
+      if (mode === 'register') {
         resetForm();
       }
     } else {
       setMessage(result.error);
       setIsError(true);
     }
-  };
-
-  const handleResendOtp = async () => {
-    if (!otpPendingEmail || !onResendFarmerOtp) return;
-    setLoading(true);
-    setMessage(null);
-    const result = await onResendFarmerOtp({ email: otpPendingEmail });
-    setLoading(false);
-    setMessage(result.message || result.error || null);
-    setIsError(!result.success);
   };
 
   return (
@@ -312,21 +249,6 @@ function AuthForms({ role, mode, onModeChange, onRegister, onLogin, onVerifyFarm
             </Link>
           )}
         </label>
-        {mode === 'register' && role === 'farmer' && otpPendingEmail && (
-          <label className="auth-forms__field">
-            <span className="auth-forms__label">{t('getStarted.otpLabel')}</span>
-            <input
-              type="text"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder={t('getStarted.otpPlaceholder')}
-              className="auth-forms__input"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-            />
-          </label>
-        )}
         {message && (
           <p className={`auth-forms__message ${isError ? 'auth-forms__message--error' : 'auth-forms__message--success'}`}>
             {message}
@@ -335,24 +257,12 @@ function AuthForms({ role, mode, onModeChange, onRegister, onLogin, onVerifyFarm
         <button
           type="submit"
           className="auth-forms__submit"
-          disabled={loading || (mode === 'register' && role === 'farmer' && otpPendingEmail ? otp.trim().length !== 6 : (!email.trim() || !password.trim()))}
+          disabled={loading || !email.trim() || !password.trim()}
         >
           {loading
             ? t('getStarted.submitting')
-            : (mode === 'register' && role === 'farmer' && otpPendingEmail
-              ? t('getStarted.verifyOtp')
-              : mode === 'register' ? t('getStarted.register') : t('getStarted.login'))}
+            : (mode === 'register' ? t('getStarted.register') : t('getStarted.login'))}
         </button>
-        {mode === 'register' && role === 'farmer' && otpPendingEmail && (
-          <button
-            type="button"
-            className="auth-forms__submit"
-            onClick={handleResendOtp}
-            disabled={loading}
-          >
-            {t('getStarted.resendOtp')}
-          </button>
-        )}
       </form>
     </div>
   );

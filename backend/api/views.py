@@ -30,7 +30,6 @@ from .ml_service import predict_eligibility, predict_risk, recommend_amount as r
 from .sms_service import send_sms
 from .models import (
     GetStartedEvent,
-    FarmerRegistrationOTP,
     PasswordResetToken,
     UserProfile,
     FarmerProfile,
@@ -523,23 +522,6 @@ def _user_role(user):
         return 'admin' if (user.is_staff or user.is_superuser) else 'farmer'
 
 
-_verify_otp_body = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    required=['email', 'otp'],
-    properties={
-        'email': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_EMAIL),
-        'otp': openapi.Schema(type=openapi.TYPE_STRING, description='6-digit OTP sent by email'),
-    },
-)
-_resend_otp_body = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    required=['email'],
-    properties={
-        'email': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_EMAIL),
-    },
-)
-
-
 @csrf_exempt
 @swagger_auto_schema(method='post', operation_description='Register a new farmer or microfinance user. Admin is backend-created; use login only for admin.', tags=['Auth'])
 @api_view(['POST'])
@@ -555,33 +537,6 @@ def auth_register(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     user = serializer.save()
     role = user.agrifin_profile.role
-
-    if role == 'farmer':
-        otp = FarmerRegistrationOTP.create_for_user(user)
-        try:
-            from django.core.mail import send_mail
-            send_mail(
-                subject='AgriFinConnect Rwanda — Verify your farmer account',
-                message=(
-                    f'Your OTP code is: {otp.code}\n\n'
-                    'This code expires in 10 minutes.\n\n'
-                    'If you did not request this registration, ignore this email.'
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email or user.username],
-                fail_silently=not getattr(settings, 'DEBUG', False),
-            )
-        except Exception:
-            pass
-
-        payload = {
-            'requires_otp': True,
-            'email': user.email,
-            'message': 'Registration successful. Enter the OTP sent to your email to verify your farmer account.',
-        }
-        if getattr(settings, 'DEBUG', False):
-            payload['otp_debug'] = otp.code
-        return Response(payload, status=status.HTTP_201_CREATED)
 
     token, _ = Token.objects.get_or_create(user=user)
     return Response({
@@ -616,7 +571,7 @@ def auth_login(request):
     if user is None or not user.check_password(password):
         return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
     if not user.is_active:
-        return Response({'error': 'Please verify your email with OTP before logging in.'}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({'error': 'This account is inactive. Please contact support.'}, status=status.HTTP_401_UNAUTHORIZED)
     token, _ = Token.objects.get_or_create(user=user)
     role = _user_role(user)
     return Response({
@@ -630,94 +585,6 @@ def auth_login(request):
             'role': role,
         },
     })
-
-
-@swagger_auto_schema(method='post', operation_description='Verify farmer registration OTP and activate account.', request_body=_verify_otp_body, tags=['Auth'])
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def auth_verify_registration_otp(request):
-    """POST /api/auth/verify-registration-otp/ — Verify farmer OTP and activate account."""
-    payload = _get_payload(request)
-    email = (payload.get('email') or '').strip().lower()
-    otp = (payload.get('otp') or '').strip()
-    if not email or not otp:
-        return Response({'error': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
-    user = _find_user_by_login_identifier(email)
-    if user is None:
-        return Response({'error': 'Invalid OTP or email.'}, status=status.HTTP_400_BAD_REQUEST)
-    if _user_role(user) != 'farmer':
-        return Response({'error': 'OTP verification is only required for farmer registration.'}, status=status.HTTP_400_BAD_REQUEST)
-    if user.is_active:
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({
-            'message': 'Account is already verified.',
-            'token': token.key,
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'first_name': user.first_name,
-                'name': user.first_name,
-                'role': _user_role(user),
-            },
-        })
-
-    if not FarmerRegistrationOTP.verify_for_user(user, otp):
-        return Response({'error': 'Invalid or expired OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    user.is_active = True
-    user.save(update_fields=['is_active'])
-    token, _ = Token.objects.get_or_create(user=user)
-    return Response({
-        'message': 'Farmer account verified successfully.',
-        'token': token.key,
-        'user': {
-            'id': user.id,
-            'email': user.email,
-            'username': user.username,
-            'first_name': user.first_name,
-            'name': user.first_name,
-            'role': _user_role(user),
-        },
-    })
-
-
-@swagger_auto_schema(method='post', operation_description='Resend farmer registration OTP to email.', request_body=_resend_otp_body, tags=['Auth'])
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def auth_resend_registration_otp(request):
-    """POST /api/auth/resend-registration-otp/ — Resend farmer OTP for account verification."""
-    payload = _get_payload(request)
-    email = (payload.get('email') or '').strip().lower()
-    if not email:
-        return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    user = _find_user_by_login_identifier(email)
-    if user is None:
-        return Response({'message': 'If a pending farmer account exists, a new OTP has been sent.'})
-
-    if _user_role(user) != 'farmer' or user.is_active:
-        return Response({'message': 'If a pending farmer account exists, a new OTP has been sent.'})
-
-    otp = FarmerRegistrationOTP.create_for_user(user)
-    try:
-        from django.core.mail import send_mail
-        send_mail(
-            subject='AgriFinConnect Rwanda — Your new OTP code',
-            message=(
-                f'Your new OTP code is: {otp.code}\n\n'
-                'This code expires in 10 minutes.'
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email or user.username],
-            fail_silently=not getattr(settings, 'DEBUG', False),
-        )
-    except Exception:
-        pass
-
-    resp = {'message': 'If a pending farmer account exists, a new OTP has been sent.'}
-    if getattr(settings, 'DEBUG', False):
-        resp['otp_debug'] = otp.code
-    return Response(resp)
 
 
 _forgot_password_body = openapi.Schema(

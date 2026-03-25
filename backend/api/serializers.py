@@ -31,7 +31,7 @@ class RegisterSerializer(serializers.Serializer):
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data.get('name') or '',
-            is_active=(role != 'farmer'),
+            is_active=True,
         )
         UserProfile.objects.create(user=user, role=role)
         return user

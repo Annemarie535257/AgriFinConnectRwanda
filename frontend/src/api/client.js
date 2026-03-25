@@ -228,22 +228,6 @@ export async function register({ email, password, role, name }) {
   }, { queueOnOffline: false });
 }
 
-/** POST /api/auth/verify-registration-otp — verify farmer registration OTP */
-export async function verifyRegistrationOtp({ email, otp }) {
-  return request('/auth/verify-registration-otp/', {
-    method: 'POST',
-    body: { email: (email || '').trim().toLowerCase(), otp: (otp || '').trim() },
-  }, { queueOnOffline: false });
-}
-
-/** POST /api/auth/resend-registration-otp — resend farmer registration OTP */
-export async function resendRegistrationOtp({ email }) {
-  return request('/auth/resend-registration-otp/', {
-    method: 'POST',
-    body: { email: (email || '').trim().toLowerCase() },
-  }, { queueOnOffline: false });
-}
-
 /** POST /api/auth/login — login (all roles) */
 export async function login({ email, password }) {
   return request('/auth/login/', {

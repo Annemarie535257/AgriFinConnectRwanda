@@ -28,3 +28,6 @@ datasets/Bitext-mortgage-loans-llm-chatbot-training-dataset/
 
 # Keep locally for now (remove this line when ready to push)
 Notebooks/train_document_fraud_ai_altered_model.ipynb
+
+# Local-only architecture document (do not commit)
+PROJECT_ARCHITECTURE_LOCAL.md

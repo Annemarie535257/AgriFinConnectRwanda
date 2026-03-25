@@ -4,8 +4,6 @@ from . import views
 urlpatterns = [
     # Auth (admin is backend-created; login only for admin)
     path('auth/register/', views.auth_register),
-    path('auth/verify-registration-otp/', views.auth_verify_registration_otp),
-    path('auth/resend-registration-otp/', views.auth_resend_registration_otp),
     path('auth/login/', views.auth_login),
     path('auth/forgot-password/', views.auth_forgot_password),
     path('auth/reset-password/', views.auth_reset_password),
