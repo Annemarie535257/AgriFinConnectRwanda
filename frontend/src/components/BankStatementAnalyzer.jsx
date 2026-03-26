@@ -5,15 +5,12 @@ import './Card.css';
 import './BankStatementAnalyzer.css';
 
 const RISK_COLOR = { LOW: '#22c55e', MEDIUM: '#f59e0b', HIGH: '#ef4444' };
-const OCCUPATIONS = ['Engineer', 'Doctor', 'Retired', 'Student'];
 
 export default function BankStatementAnalyzer() {
   const { t } = useLanguage();
   const fileRef = useRef(null);
 
   const [file, setFile]               = useState(null);
-  const [customerAge, setCustomerAge] = useState(35);
-  const [occupation, setOccupation]   = useState('Engineer');
   const [loading, setLoading]         = useState(false);
   const [result, setResult]           = useState(null);
   const [error, setError]             = useState(null);
@@ -38,7 +35,7 @@ export default function BankStatementAnalyzer() {
     setResult(null);
     setError(null);
     try {
-      const data = await analyzeBankStatement(file, { customer_age: customerAge, occupation });
+      const data = await analyzeBankStatement(file);
       setResult(data);
     } catch (err) {
       setError(err.body?.error || err.message || t('apiError'));
@@ -95,31 +92,6 @@ export default function BankStatementAnalyzer() {
               onChange={handleFileChange}
               style={{ display: 'none' }}
             />
-          </label>
-
-          {/* Customer age */}
-          <label className="card__label">
-            Customer Age
-            <input
-              type="number"
-              min={18}
-              max={100}
-              value={customerAge}
-              onChange={(e) => setCustomerAge(Number(e.target.value))}
-              className="card__input"
-            />
-          </label>
-
-          {/* Occupation */}
-          <label className="card__label">
-            Occupation
-            <select
-              value={occupation}
-              onChange={(e) => setOccupation(e.target.value)}
-              className="card__input"
-            >
-              {OCCUPATIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
           </label>
         </div>
 

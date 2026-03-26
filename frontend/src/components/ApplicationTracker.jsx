@@ -84,7 +84,7 @@ export default function ApplicationTracker({ statusHistory, currentStatus, compa
 
   return (
     <div
-      className={`application-tracker application-tracker--horizontal ${compact ? 'application-tracker--compact' : 'application-tracker--full'}`}
+      className={`application-tracker application-tracker--horizontal ${compact ? 'application-tracker--compact' : 'application-tracker--full'} ${currentStatus === 'rejected' ? 'application-tracker--rejected' : ''}`}
       role="region"
       aria-label={t('farmer.applicationProgress') || 'Application progress'}
       aria-live="polite"

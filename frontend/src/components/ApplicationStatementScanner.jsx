@@ -144,7 +144,7 @@ export default function ApplicationStatementScanner({ applications = [] }) {
     setScanning((prev) => ({ ...prev, [app.id]: true }));
     setResults((prev) => ({ ...prev, [app.id]: null }));
     try {
-      const result = await analyzeApplicationStatement(app.id, {});
+      const result = await analyzeApplicationStatement(app.id);
       setResults((prev) => ({ ...prev, [app.id]: result }));
     } catch (err) {
       setResults((prev) => ({

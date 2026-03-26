@@ -190,13 +190,12 @@ export async function analyzeBankStatement(pdfFile, opts = {}) {
  * POST /api/mfi/applications/<pk>/analyze-statement/
  * Run fraud analysis on the proof_of_income PDF already submitted by the farmer.
  * @param {number} appId
- * @param {{ occupation?: string, customer_age?: number }} opts
  */
-export async function analyzeApplicationStatement(appId, opts = {}) {
+export async function analyzeApplicationStatement(appId) {
   const token = localStorage.getItem('agrifinconnect-token');
   return request(`/mfi/applications/${appId}/analyze-statement/`, {
     method: 'POST',
-    body: opts,
+    body: {},
     headers: token ? { Authorization: `Token ${token}` } : {},
   });
 }

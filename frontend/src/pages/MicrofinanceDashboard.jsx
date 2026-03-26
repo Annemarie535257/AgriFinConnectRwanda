@@ -13,6 +13,7 @@ import {
 import FloatingChatbot from '../components/FloatingChatbot';
 import FraudDetectionCard from '../components/FraudDetectionCard';
 import ApplicationStatementScanner from '../components/ApplicationStatementScanner';
+import BankStatementAnalyzer from '../components/BankStatementAnalyzer';
 import DashboardTopBar from '../components/DashboardTopBar';
 import ApplicationTracker from '../components/ApplicationTracker';
 import './Dashboard.css';
@@ -744,6 +745,13 @@ export default function MicrofinanceDashboard() {
           <section className="mfi-dashboard__section" aria-labelledby="mfi-fraud-heading">
             <h2 id="mfi-fraud-heading" className="mfi-dashboard__section-title">{t('card5.title')}</h2>
             <ApplicationStatementScanner applications={applications} />
+            <div className="mfi-dashboard__fraud-extra">
+              <h3 className="mfi-dashboard__sub-title">Test other bank statements</h3>
+              <p className="mfi-dashboard__fraud-extra-desc">
+                You can also upload and scan any additional PDF bank statement that is not part of a submitted application.
+              </p>
+              <BankStatementAnalyzer />
+            </div>
           </section>
         )}
 

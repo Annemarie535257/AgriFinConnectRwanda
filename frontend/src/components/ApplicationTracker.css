@@ -202,6 +202,25 @@
   color: var(--tracker-muted);
 }
 
+/* Rejected applications should render tracker progress in red. */
+.application-tracker--rejected {
+  --tracker-primary: #dc2626;
+  --tracker-done: #dc2626;
+}
+
+.application-tracker--rejected .application-tracker__progress-fill,
+.application-tracker--rejected .application-tracker__track-line-fill {
+  background: #dc2626;
+}
+
+.application-tracker--rejected .application-tracker__progress-percent {
+  color: #dc2626;
+}
+
+.application-tracker--rejected .application-tracker__step--current .application-tracker__marker {
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.25);
+}
+
 /* Compact: smaller circles and text, hide date if needed */
 .application-tracker--compact .application-tracker__progress-wrap {
   display: none;

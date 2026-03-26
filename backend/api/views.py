@@ -374,9 +374,6 @@ def analyze_application_statement(request, pk):
     loan application, run the full fraud analysis pipeline on it, and return the
     statement-level verdict.
 
-    Optional JSON body:
-      { "occupation": "Engineer" }   (overrides the default if known)
-
     Returns: same shape as /api/fraud-detect/statement/ (flag_statement result).
     """
     if not _is_microfinance(request.user):
@@ -401,17 +398,11 @@ def analyze_application_statement(request, pk):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Derive age from application data if available
-    try:
-        customer_age = int(request.data.get('customer_age', 35))
-    except (ValueError, TypeError):
-        customer_age = 35
-    occupation = request.data.get('occupation', 'Engineer')
-
     try:
         from api.pdf_statement_service import flag_statement
         with bank_statement_doc.file.open('rb') as pdf_file:
-            result = flag_statement(pdf_file, customer_age=customer_age, occupation=occupation)
+            # Keep statement scanning defaults identical to the direct upload scanner.
+            result = flag_statement(pdf_file)
 
         # Attach application metadata for context
         result['application_id']   = application.id

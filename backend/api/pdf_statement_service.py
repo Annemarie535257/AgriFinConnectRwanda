@@ -46,17 +46,37 @@ _CREDIT_KEYWORDS = re.compile(r"\b(credit|cr|deposit|receive|transfer in|salary|
 # Groups of keywords — at least MIN_GROUPS must have at least one match
 _STATEMENT_KEYWORD_GROUPS = [
     # Group 1 — account/statement identity
-    re.compile(r"\b(account\s*(number|no|#)|statement of account|bank statement|account statement)\b", re.I),
+    re.compile(
+        r"\b(account\s*(number|no|#)|statement of account|bank statement|account statement|"
+        r"releve de compte|extrait de compte)\b",
+        re.I,
+    ),
     # Group 2 — balance indicators
-    re.compile(r"\b(opening balance|closing balance|available balance|current balance|ledger balance|running balance)\b", re.I),
+    re.compile(
+        r"\b(opening balance|closing balance|available balance|current balance|ledger balance|running balance|"
+        r"solde d'ouverture|solde de cloture|solde disponible|solde courant)\b",
+        re.I,
+    ),
     # Group 3 — transaction table markers
-    re.compile(r"\b(debit|credit|withdrawal|deposit|transfer|dr\b|cr\b)\b", re.I),
+    re.compile(r"\b(debit|credit|withdrawal|deposit|transfer|dr\b|cr\b|retrait|versement|virement)\b", re.I),
     # Group 4 — bank/financial institution names or generic "bank"
     re.compile(r"\b(bank|microfinance|savings|equity|cogebanque|kcb|i&m|bk|access|gt bank|zenith|brd|umurenge)\b", re.I),
     # Group 5 — statement period / date range header
-    re.compile(r"\b(from|to|period|statement date|as at|date range|print date)\b", re.I),
+    re.compile(r"\b(from|to|period|statement date|as at|date range|print date|periode|date d'impression)\b", re.I),
 ]
 _MIN_STATEMENT_GROUPS = 3   # document must satisfy at least this many groups
+
+
+def _count_transaction_like_lines(full_text: str) -> int:
+    """Count lines that look like transaction rows (date + at least one amount)."""
+    count = 0
+    for raw_line in full_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _DATE_RE.search(line) and _AMOUNT_RE.search(line):
+            count += 1
+    return count
 
 
 def _check_is_bank_statement(full_text: str) -> tuple[bool, str]:
@@ -68,13 +88,36 @@ def _check_is_bank_statement(full_text: str) -> tuple[bool, str]:
     if not full_text or len(full_text.strip()) < 50:
         return False, "PDF appears to be empty or contains no extractable text."
 
-    matched_groups = sum(1 for pat in _STATEMENT_KEYWORD_GROUPS if pat.search(full_text))
+    group_matches = [bool(pat.search(full_text)) for pat in _STATEMENT_KEYWORD_GROUPS]
+    matched_groups = sum(group_matches)
+
+    # Named signals to keep heuristics strict enough for non-statement PDFs.
+    has_identity_signal = group_matches[0] or group_matches[3]   # account/statement wording or bank name
+    has_tx_signal = group_matches[2]                             # debit/credit markers
+
+    # Supplemental evidence for valid statements that use unusual headers/layouts.
+    date_hits = len(_DATE_RE.findall(full_text))
+    amount_hits = len(_AMOUNT_RE.findall(full_text))
+    tx_like_lines = _count_transaction_like_lines(full_text)
+
+    has_tabular_evidence = (
+        tx_like_lines >= 4
+        or (date_hits >= 6 and amount_hits >= 12)
+    )
+
+    if matched_groups >= _MIN_STATEMENT_GROUPS:
+        return True, "ok"
+
+    # Allow likely statements when keyword groups are low but transaction evidence is strong.
+    if matched_groups >= 2 and has_tabular_evidence and has_identity_signal and has_tx_signal:
+        return True, "ok_heuristic"
 
     if matched_groups < _MIN_STATEMENT_GROUPS:
         return (
             False,
             f"This document does not appear to be a bank statement "
-            f"(matched only {matched_groups}/{len(_STATEMENT_KEYWORD_GROUPS)} expected keyword groups). "
+            f"(matched only {matched_groups}/{len(_STATEMENT_KEYWORD_GROUPS)} expected keyword groups; "
+            f"found {tx_like_lines} transaction-like lines, {date_hits} date patterns, {amount_hits} amount patterns). "
             "Please upload a valid bank statement PDF.",
         )
     return True, "ok"
