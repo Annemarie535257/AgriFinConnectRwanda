@@ -19,10 +19,52 @@ export default function GetStartedPage() {
   const navigate = useNavigate();
   const [farmerMode, setFarmerMode] = useState('login'); // 'login' | 'register'
   const [microfinanceMode, setMicrofinanceMode] = useState('login');
+  const [legalAccepted, setLegalAccepted] = useState(() => {
+    return localStorage.getItem('agrifinconnect-legal-accepted') === 'true';
+  });
+  const [legalGateOpen, setLegalGateOpen] = useState(false);
+  const [legalAcceptedJustNow, setLegalAcceptedJustNow] = useState(false);
+  const [pendingRegisterRole, setPendingRegisterRole] = useState(null);
 
   useEffect(() => {
     logGetStartedActivity('modal_opened');
   }, []);
+
+  useEffect(() => {
+    if (!legalAcceptedJustNow) return undefined;
+
+    const timer = setTimeout(() => {
+      setLegalAcceptedJustNow(false);
+      setLegalGateOpen(false);
+      if (pendingRegisterRole === 'farmer') {
+        setFarmerMode('register');
+      }
+      if (pendingRegisterRole === 'microfinance') {
+        setMicrofinanceMode('register');
+      }
+      setPendingRegisterRole(null);
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [legalAcceptedJustNow, pendingRegisterRole]);
+
+  const handleRequestRegister = (role) => {
+    if (legalAccepted) {
+      if (role === 'farmer') setFarmerMode('register');
+      if (role === 'microfinance') setMicrofinanceMode('register');
+      return;
+    }
+
+    setPendingRegisterRole(role);
+    setLegalGateOpen(true);
+    setLegalAcceptedJustNow(false);
+  };
+
+  const handleAgreeAndContinue = () => {
+    localStorage.setItem('agrifinconnect-legal-accepted', 'true');
+    setLegalAccepted(true);
+    setLegalAcceptedJustNow(true);
+  };
 
   const handleRegister = async (role, { email, password, name }) => {
     logGetStartedActivity('register_clicked', role + 's');
@@ -103,8 +145,10 @@ export default function GetStartedPage() {
                 role="farmer"
                 mode={farmerMode}
                 onModeChange={setFarmerMode}
+                onRequestRegister={handleRequestRegister}
                 onRegister={handleRegister}
                 onLogin={handleLogin}
+                legalAccepted={legalAccepted}
                 t={t}
               />
             </section>
@@ -119,8 +163,10 @@ export default function GetStartedPage() {
                 role="microfinance"
                 mode={microfinanceMode}
                 onModeChange={setMicrofinanceMode}
+                onRequestRegister={handleRequestRegister}
                 onRegister={handleRegister}
                 onLogin={handleLogin}
+                legalAccepted={legalAccepted}
                 t={t}
               />
             </section>
@@ -134,13 +180,53 @@ export default function GetStartedPage() {
             System Admin
           </Link>
         </div>
+
+        {legalGateOpen && (
+          <div className="register-legal-gate" role="dialog" aria-modal="true" aria-labelledby="register-legal-title">
+            <div className="register-legal-gate__card">
+              {legalAcceptedJustNow ? (
+                <div className="register-legal-gate__success" aria-live="polite">
+                  <div className="register-legal-gate__tick" aria-hidden="true">✓</div>
+                  <h2 className="register-legal-gate__title">{t('legalGate.agreedTitle')}</h2>
+                  <p className="register-legal-gate__lead">{t('legalGate.agreedLead')}</p>
+                </div>
+              ) : (
+                <>
+                  <p className="register-legal-gate__eyebrow">{t('legalGate.eyebrow')}</p>
+                  <h2 id="register-legal-title" className="register-legal-gate__title">{t('legalGate.title')}</h2>
+                  <p className="register-legal-gate__lead">{t('legalGate.lead')}</p>
+
+                  <ul className="register-legal-gate__list">
+                    <li>
+                      <strong>{t('legalGate.highlights.licenseTitle')}:</strong> {t('legalGate.highlights.license')}
+                    </li>
+                    <li>
+                      <strong>{t('legalGate.highlights.privacyTitle')}:</strong> {t('legalGate.highlights.privacy')}
+                    </li>
+                  </ul>
+
+                  <p className="register-legal-gate__note">{t('legalGate.importantNote')}</p>
+
+                  <div className="register-legal-gate__actions">
+                    <Link to="/legal" className="register-legal-gate__link">
+                      {t('legalGate.readFullPolicy')}
+                    </Link>
+                    <button type="button" className="register-legal-gate__button" onClick={handleAgreeAndContinue}>
+                      {t('legalGate.acceptContinue')}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </main>
       <FloatingChatbot />
     </div>
   );
 }
 
-function AuthForms({ role, mode, onModeChange, onRegister, onLogin, t, loginOnly = false }) {
+function AuthForms({ role, mode, onModeChange, onRequestRegister, onRegister, onLogin, legalAccepted, t, loginOnly = false }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -198,7 +284,14 @@ function AuthForms({ role, mode, onModeChange, onRegister, onLogin, t, loginOnly
           <button
             type="button"
             className={`auth-forms__tab ${mode === 'register' ? 'auth-forms__tab--active' : ''}`}
-            onClick={() => { onModeChange('register'); resetForm(); }}
+            onClick={() => {
+              if (legalAccepted) {
+                onModeChange('register');
+                resetForm();
+                return;
+              }
+              onRequestRegister(role);
+            }}
           >
             {t('getStarted.register')}
           </button>
