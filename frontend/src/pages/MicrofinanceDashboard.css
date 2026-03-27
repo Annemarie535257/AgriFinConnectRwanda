@@ -872,3 +872,86 @@
   color: var(--color-text-muted);
   font-style: italic;
 }
+
+@media (max-width: 1024px) {
+  .mfi-dashboard__farmer-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mfi-dashboard__update-status {
+    align-items: stretch;
+  }
+
+  .mfi-dashboard__update-status label,
+  .mfi-dashboard__update-status select,
+  .mfi-dashboard__note-input {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .mfi-dashboard__card,
+  .mfi-dashboard__farmer-detail,
+  .mfi-repay-table-header,
+  .mfi-repay-table-block {
+    padding: 0.95rem;
+  }
+
+  .mfi-dashboard__card-header,
+  .mfi-dashboard__status-footer,
+  .mfi-dashboard__docs-item,
+  .mfi-dashboard__actions {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .mfi-dashboard__btn,
+  .mfi-dashboard__btn--primary,
+  .mfi-dashboard__btn--approve,
+  .mfi-dashboard__btn--reject {
+    width: 100%;
+  }
+
+  .mfi-dashboard__table,
+  .mfi-repay-table {
+    font-size: 0.82rem;
+  }
+
+  .mfi-dashboard__table th,
+  .mfi-dashboard__table td,
+  .mfi-repay-table th,
+  .mfi-repay-table td {
+    padding: 0.42rem 0.5rem;
+  }
+
+  .mfi-repay-table-header {
+    gap: 0.7rem;
+  }
+
+  .mfi-repay-table-progress {
+    width: 100%;
+  }
+
+  .mfi-dashboard__farmer-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+  }
+
+  .mfi-dashboard__farmer-detail-row > span:last-child {
+    text-align: left;
+  }
+}
+
+@media (max-width: 520px) {
+  .mfi-dashboard__section-title,
+  .mfi-dashboard__sub-title {
+    font-size: 1.06rem;
+  }
+
+  .mfi-repay-table-wrap,
+  .mfi-dashboard__table-wrap {
+    overflow-x: auto;
+  }
+}

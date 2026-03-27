@@ -31,3 +31,23 @@ Notebooks/train_document_fraud_ai_altered_model.ipynb
 
 # Local-only architecture document (do not commit)
 PROJECT_ARCHITECTURE_LOCAL.md
+
+# Netlify local/dev artifacts
+.netlify/
+frontend/.netlify/
+netlify-debug.log
+
+# Render local/deploy artifacts
+.render/
+render-debug.log
+
+# Deployment environment files (keep real secrets out of git)
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example

@@ -149,8 +149,9 @@ def eligibility(request):
             'reason': reason,
             'description': eligibility_description(language),
         })
-    except FileNotFoundError as e:
-        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except (FileNotFoundError, RuntimeError, KeyError) as e:
+        logger.exception('Eligibility model unavailable')
+        return Response({'error': 'ML eligibility model unavailable. Please try again shortly.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -175,8 +176,9 @@ def risk(request):
             'description': risk_info['description'],
             'score_meaning': risk_info['score_meaning'],
         })
-    except FileNotFoundError as e:
-        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except (FileNotFoundError, RuntimeError, KeyError) as e:
+        logger.exception('Risk model unavailable')
+        return Response({'error': 'ML risk model unavailable. Please try again shortly.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -210,8 +212,9 @@ def recommend_amount(request):
             'explanation': amount_info['explanation'],
             'basis': amount_info['basis'],
         })
-    except FileNotFoundError as e:
-        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except (FileNotFoundError, RuntimeError, KeyError) as e:
+        logger.exception('Amount recommendation model unavailable')
+        return Response({'error': 'ML recommendation model unavailable. Please try again shortly.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1173,8 +1176,9 @@ def farmer_applications(request):
                 app.recommended_amount = rec_usd * _RWF_TO_USD
             else:
                 app.recommended_amount = None
-        except FileNotFoundError:
-            return Response({'error': 'ML models not available'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except (FileNotFoundError, RuntimeError, KeyError):
+            logger.exception('Loan application ML pipeline unavailable')
+            return Response({'error': 'ML models not available right now. Please try again shortly.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         app.save()

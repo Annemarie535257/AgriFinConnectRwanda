@@ -548,3 +548,72 @@
   color: var(--color-text-muted);
 }
 
+@media (max-width: 1024px) {
+  .admin-dashboard__stat-row {
+    gap: 0.75rem;
+  }
+
+  .admin-dashboard__stat-card {
+    flex: 1 1 220px;
+  }
+
+  .admin-dashboard__detail-panel {
+    width: min(100vw, 760px);
+    padding: 1rem 1rem 1.2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-dashboard__action-bar,
+  .admin-dashboard__filters,
+  .admin-dashboard__tabs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-dashboard__django-btn,
+  .admin-dashboard__refresh-btn,
+  .admin-dashboard__tab {
+    width: 100%;
+    text-align: center;
+  }
+
+  .admin-dashboard__table {
+    font-size: 0.82rem;
+  }
+
+  .admin-dashboard__table th,
+  .admin-dashboard__table td {
+    padding: 0.42rem 0.5rem;
+  }
+
+  .admin-dashboard__detail-grid {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .admin-dashboard__detail-grid dt {
+    margin-top: 0.45rem;
+  }
+
+  .admin-dashboard__save-btn {
+    width: 100%;
+    align-self: stretch;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-dashboard__section-title {
+    font-size: 1.06rem;
+  }
+
+  .admin-dashboard__stat-value {
+    font-size: 1.25rem;
+  }
+
+  .admin-dashboard__detail-panel {
+    width: 100vw;
+    padding: 0.85rem;
+  }
+}
+

@@ -4,6 +4,7 @@ Load ML models and run inference. Uses artifacts from loan_default_risk_model/.
 import os
 import joblib
 import numpy as np
+import threading
 from pathlib import Path
 from django.conf import settings
 
@@ -51,30 +52,65 @@ DEFAULT_NUMERIC = {
 }
 
 _models = {}
+_models_lock = threading.Lock()
+_MODELS_READY = False
+_REQUIRED_KEYS = (
+    'feature_cols',
+    'scaler',
+    'label_encoder',
+    'approved_label_idx',
+    'classifier',
+    'risk_regressor',
+    'amount_regressor',
+)
+
+
+def _is_models_ready():
+    return all(k in _models for k in _REQUIRED_KEYS)
 
 
 def _load_artifacts():
-    if _models:
+    global _MODELS_READY
+    if _MODELS_READY and _is_models_ready():
         return
-    if not MODELS_DIR.exists():
-        raise FileNotFoundError(f"Models directory not found: {MODELS_DIR}")
-    _models['feature_cols'] = joblib.load(MODELS_DIR / 'feature_columns.pkl')
-    _models['scaler'] = joblib.load(MODELS_DIR / 'scaler.pkl')
-    _models['label_encoder'] = joblib.load(MODELS_DIR / 'label_encoder.pkl')
-    classes = [str(c).strip().lower() for c in _models['label_encoder'].classes_]
-    if 'approved' in classes:
-        _models['approved_label_idx'] = classes.index('approved')
-    elif '1' in classes:
-        _models['approved_label_idx'] = classes.index('1')
-    else:
-        _models['approved_label_idx'] = 1 if len(classes) > 1 else 0
-    _models['classifier'] = joblib.load(MODELS_DIR / 'loan_default_classifier.pkl')
-    _models['risk_regressor'] = joblib.load(MODELS_DIR / 'risk_score_regressor.pkl')
-    _models['amount_regressor'] = joblib.load(MODELS_DIR / 'loan_amount_regressor.pkl')
-    amount_scaler_path = MODELS_DIR / 'loan_amount_scaler.pkl'
-    amount_feature_cols_path = MODELS_DIR / 'loan_amount_feature_columns.pkl'
-    _models['amount_scaler'] = joblib.load(amount_scaler_path) if amount_scaler_path.exists() else None
-    _models['amount_feature_cols'] = joblib.load(amount_feature_cols_path) if amount_feature_cols_path.exists() else None
+
+    with _models_lock:
+        if _MODELS_READY and _is_models_ready():
+            return
+
+        if not MODELS_DIR.exists():
+            raise FileNotFoundError(f"Models directory not found: {MODELS_DIR}")
+
+        loaded = {}
+        try:
+            loaded['feature_cols'] = joblib.load(MODELS_DIR / 'feature_columns.pkl')
+            loaded['scaler'] = joblib.load(MODELS_DIR / 'scaler.pkl')
+            loaded['label_encoder'] = joblib.load(MODELS_DIR / 'label_encoder.pkl')
+
+            classes = [str(c).strip().lower() for c in loaded['label_encoder'].classes_]
+            if 'approved' in classes:
+                loaded['approved_label_idx'] = classes.index('approved')
+            elif '1' in classes:
+                loaded['approved_label_idx'] = classes.index('1')
+            else:
+                loaded['approved_label_idx'] = 1 if len(classes) > 1 else 0
+
+            loaded['classifier'] = joblib.load(MODELS_DIR / 'loan_default_classifier.pkl')
+            loaded['risk_regressor'] = joblib.load(MODELS_DIR / 'risk_score_regressor.pkl')
+            loaded['amount_regressor'] = joblib.load(MODELS_DIR / 'loan_amount_regressor.pkl')
+
+            amount_scaler_path = MODELS_DIR / 'loan_amount_scaler.pkl'
+            amount_feature_cols_path = MODELS_DIR / 'loan_amount_feature_columns.pkl'
+            loaded['amount_scaler'] = joblib.load(amount_scaler_path) if amount_scaler_path.exists() else None
+            loaded['amount_feature_cols'] = joblib.load(amount_feature_cols_path) if amount_feature_cols_path.exists() else None
+        except Exception:
+            _models.clear()
+            _MODELS_READY = False
+            raise
+
+        _models.clear()
+        _models.update(loaded)
+        _MODELS_READY = True
 
 
 def _encode_categorical(name, value):

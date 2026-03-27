@@ -978,6 +978,99 @@
   border-radius: var(--radius-lg);
 }
 
+@media (max-width: 1024px) {
+  .farmer-dashboard__form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .farmer-dashboard__documents-list {
+    grid-template-columns: 1fr;
+  }
+
+  .farmer-profile-modern__row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .farmer-dashboard__card,
+  .farmer-dashboard__process-overview,
+  .farmer-dashboard__farming-section,
+  .farmer-dashboard__documents-section,
+  .farmer-dashboard__model-section {
+    padding: 0.9rem;
+  }
+
+  .farmer-dashboard__submit {
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .farmer-dashboard__table {
+    font-size: 0.82rem;
+  }
+
+  .farmer-dashboard__table th,
+  .farmer-dashboard__table td {
+    padding: 0.42rem 0.5rem;
+  }
+
+  .farmer-dashboard__package-doc-item {
+    flex-wrap: wrap;
+  }
+
+  .farmer-dashboard__package-doc-link {
+    width: 100%;
+  }
+
+  .farmer-farm-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .farmer-farm-download-btn {
+    width: 100%;
+  }
+
+  .farmer-profile-modern__left,
+  .farmer-profile-modern__card {
+    padding: 1rem;
+  }
+
+  .farmer-profile-modern__avatar-shell {
+    width: 104px;
+    height: 104px;
+  }
+
+  .farmer-profile-modern__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .farmer-profile-reset-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .farmer-dashboard__section-title {
+    font-size: 1.08rem;
+  }
+
+  .farmer-dashboard__card--small {
+    align-items: flex-start;
+  }
+
+  .repay-loan-block {
+    padding: 0.9rem;
+  }
+
+  .repay-calendar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .farmer-dashboard__model-title {
   margin: 0 0 0.35rem;
   font-size: 1.1rem;
