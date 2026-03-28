@@ -179,6 +179,59 @@ class TestRecommendAmountEndpoint:
             response = api_client.post(RECOMMEND_URL, SAMPLE_ML_PAYLOAD, format='json')
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
+    def test_recommend_uses_raw_rwf_income_for_cap_when_present(self, api_client):
+        """If original RWF income is present, affordability cap must use it (not scaled AnnualIncome)."""
+        payload = {
+            **SAMPLE_ML_PAYLOAD,
+            # Scaled value typically sent to the model space.
+            'AnnualIncome': 45000,
+            # Real user input in RWF (600k yearly).
+            'AnnualIncomeRWF': 600000,
+            'LoanDuration': 24,
+        }
+        with patch('api.views.recommend_loan_amount', return_value=999_999.0), \
+             patch('api.views.recommend_amount_explanation', return_value={
+                 'explanation': 'capped by raw income',
+                 'basis': 'DTI',
+             }):
+            response = api_client.post(RECOMMEND_URL, payload, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+
+        # 600,000 RWF yearly -> (600000/1350)/12 USD monthly.
+        # cap_usd = monthly * 0.35 * 24, then converted back to RWF.
+        annual_usd = (600000 / 1350)
+        max_usd = (annual_usd / 12) * 0.35 * 24
+        max_rwf = max_usd * 1350
+        assert data['recommended_amount'] <= max_rwf * 1.01
+
+    def test_recommend_descales_model_output_before_rwf_conversion(self, api_client):
+        """Model output is in scaled USD space and should be de-scaled for the real user."""
+        payload = {
+            **SAMPLE_ML_PAYLOAD,
+            # Simulate frontend scaled income sent to model.
+            'AnnualIncome': 45000,
+            # Real user income in RWF (very low), so scale ~= 101.25.
+            'AnnualIncomeRWF': 600000,
+            'LoanDuration': 24,
+        }
+        with patch('api.views.recommend_loan_amount', return_value=10_000.0), \
+             patch('api.views.recommend_amount_explanation', return_value={
+                 'explanation': 'descaled',
+                 'basis': 'DTI',
+             }):
+            response = api_client.post(RECOMMEND_URL, payload, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+
+        # Expected de-scaled USD = 10,000 / (45000 / (600000/1350)).
+        raw_income_usd = 600000 / 1350
+        scale = 45000 / raw_income_usd
+        expected_rwf = (10000 / scale) * 1350
+
+        # This case should not be capped (expected_rwf ~133,333 < affordability cap ~420,000).
+        assert data['recommended_amount'] == pytest.approx(expected_rwf, rel=0.02)
+
 
 # ---------------------------------------------------------------------------
 # /api/chat/

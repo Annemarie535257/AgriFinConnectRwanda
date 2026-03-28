@@ -152,6 +152,9 @@ class FarmerProfile(models.Model):
     blood_group = models.CharField(max_length=10, blank=True)
     about = models.TextField(blank=True)
     profile_photo = models.ImageField(upload_to='farmer_profiles/%Y/%m/', null=True, blank=True, max_length=255)
+    profile_photo_data = models.BinaryField(null=True, blank=True, editable=False)
+    profile_photo_content_type = models.CharField(max_length=100, blank=True)
+    profile_photo_name = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

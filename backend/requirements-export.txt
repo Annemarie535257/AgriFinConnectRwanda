@@ -1,6 +1,0 @@
-# Minimal deps for export_chatbot_to_pytorch.py (convert tf_model.h5 -> pytorch_model.bin).
-# Prefer using the full backend requirements in a Python 3.11 venv (see backend/requirements.txt header).
-# If you only need export: pip install -r backend/requirements-export.txt (Python 3.9-3.12).
-transformers>=4.30,<5
-tensorflow>=2.13
-torch>=2.0

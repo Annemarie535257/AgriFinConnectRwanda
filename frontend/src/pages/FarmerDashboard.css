@@ -970,6 +970,13 @@
   color: var(--color-success, #198754);
 }
 
+.farmer-dashboard__documents-missing {
+  margin: 0.85rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-error, #dc3545);
+}
+
 .farmer-dashboard__model-section {
   margin-top: 1.5rem;
   padding: 1.25rem;
@@ -1152,6 +1159,13 @@
 
 .farmer-dashboard__model-error {
   color: var(--color-error);
+}
+
+.farmer-dashboard__model-note {
+  margin: 0.6rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
 }
 
 /* Spread form across more columns on larger screens */

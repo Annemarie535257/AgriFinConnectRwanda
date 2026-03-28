@@ -190,6 +190,16 @@ def eligibility_reason(payload, approved, language="en"):
     income = _num(payload, "AnnualIncome", 60000)
     credit = _num(payload, "CreditScore", 620)
     loan_amt = _num(payload, "LoanAmount", 20000)
+    display_income = (
+        _num(payload, "AnnualIncomeRWF", None)
+        or _num(payload, "annual_income_rwf", None)
+        or _num(payload, "annual_income", income)
+    )
+    display_loan_amt = (
+        _num(payload, "LoanAmountRWF", None)
+        or _num(payload, "loan_amount_rwf", None)
+        or _num(payload, "loan_amount_requested", loan_amt)
+    )
     dti = _num(payload, "DebtToIncomeRatio", 0.35)
     employment = _str(payload, "EmploymentStatus", "Employed")
     prev_defaults = _num(payload, "PreviousLoanDefaults", 0)
@@ -247,7 +257,7 @@ def eligibility_reason(payload, approved, language="en"):
 
         summary = _tr(lang, "denied_prefix") + ", ".join(reasons)
         profile_snapshot = (
-            f" Profile summary: income={income:,.0f}, requested={loan_amt:,.0f}, "
+            f" Profile summary: income={display_income:,.0f}, requested={display_loan_amt:,.0f}, "
             f"credit={int(credit)}, DTI={dti:.0%}, employment={employment}, "
             f"defaults={int(prev_defaults)}, bankruptcy={int(bankruptcy)}, payment_history={payment_hist:.0f}."
         )

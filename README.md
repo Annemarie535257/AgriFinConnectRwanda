@@ -124,7 +124,6 @@ AgriFinConnectRwanda/
 |   |   +-- settings.py             # Django settings (MODELS_DIR, CORS, etc.)
 |   |   +-- urls.py                 # Root URL conf (/api/, /swagger/, /redoc/)
 |   +-- requirements.txt            # Full backend dependencies
-|   +-- requirements-render.txt     # Lean Render dependencies (no torch/transformers)
 |   +-- manage.py
 |   +-- db.sqlite3
 |

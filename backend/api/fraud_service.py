@@ -41,19 +41,47 @@ _CHANNEL_MAP = {"Online": 0, "ATM": 1, "Branch": 2}
 _OCC_MAP = {"Doctor": 0, "Engineer": 1, "Retired": 2, "Student": 3}
 
 _artifacts = {}
+_LOAD_ERROR = None
+
+
+class FraudModelUnavailable(RuntimeError):
+    """Raised when fraud artifacts cannot be loaded for the active runtime."""
+    pass
 
 
 def _load_artifacts():
+    global _LOAD_ERROR
     if _artifacts:
         return
+    if _LOAD_ERROR is not None:
+        raise FraudModelUnavailable(_LOAD_ERROR)
     if not FRAUD_MODELS_DIR.exists():
         raise FileNotFoundError(f"Fraud model directory not found: {FRAUD_MODELS_DIR}")
-    _artifacts["feature_cols"] = joblib.load(FRAUD_MODELS_DIR / "fraud_feature_columns.pkl")
-    _artifacts["scaler"]       = joblib.load(FRAUD_MODELS_DIR / "fraud_scaler.pkl")
-    _artifacts["encoders"]     = joblib.load(FRAUD_MODELS_DIR / "fraud_encoders.pkl")
-    _artifacts["iso"]          = joblib.load(FRAUD_MODELS_DIR / "fraud_isolation_forest.pkl")
-    # Primary model: best Gradient Boosting regressor (risk score 0-100)
-    _artifacts["best_model"]   = joblib.load(FRAUD_MODELS_DIR / "fraud_best_gradient_boosting.pkl")
+    loaded = {}
+    try:
+        loaded["feature_cols"] = joblib.load(FRAUD_MODELS_DIR / "fraud_feature_columns.pkl")
+        loaded["scaler"] = joblib.load(FRAUD_MODELS_DIR / "fraud_scaler.pkl")
+        loaded["encoders"] = joblib.load(FRAUD_MODELS_DIR / "fraud_encoders.pkl")
+        loaded["iso"] = joblib.load(FRAUD_MODELS_DIR / "fraud_isolation_forest.pkl")
+        # Primary model: best Gradient Boosting regressor (risk score 0-100)
+        loaded["best_model"] = joblib.load(FRAUD_MODELS_DIR / "fraud_best_gradient_boosting.pkl")
+    except Exception as exc:
+        import numpy as _np
+        import sklearn as _sk
+        import joblib as _jb
+        _artifacts.clear()
+        _LOAD_ERROR = (
+            "Fraud model artifacts failed to load in this runtime. "
+            f"Error: {exc}. "
+            f"Active versions -> numpy={_np.__version__}, sklearn={_sk.__version__}, joblib={_jb.__version__}. "
+            "Use the same environment/versions used to train/export the fraud models."
+        )
+        logger.exception("Fraud model load failure")
+        raise FraudModelUnavailable(_LOAD_ERROR) from exc
+
+    _artifacts.clear()
+    _artifacts.update(loaded)
+    _LOAD_ERROR = None
     logger.info("Fraud detection models loaded from %s", FRAUD_MODELS_DIR)
 
 

@@ -69,6 +69,41 @@ def _get_payload(request):
         return {}
 
 
+def _get_numeric(payload, keys, default=None):
+    """Read first numeric value from payload by key alias list."""
+    for key in keys:
+        if key not in payload:
+            continue
+        try:
+            value = float(payload.get(key))
+            return value
+        except (TypeError, ValueError):
+            continue
+    return default
+
+
+def _payload_income_scale(payload):
+    """Infer the frontend scaling multiplier from payload values."""
+    scaled_income_usd = _get_numeric(payload, ('AnnualIncome',), None)
+    raw_income_rwf = _get_numeric(payload, ('AnnualIncomeRWF', 'annual_income_rwf', 'annual_income'), None)
+    if not scaled_income_usd or not raw_income_rwf or scaled_income_usd <= 0 or raw_income_rwf <= 0:
+        return 1.0
+    raw_income_usd = raw_income_rwf / _RWF_TO_USD
+    if raw_income_usd <= 0:
+        return 1.0
+    return max(scaled_income_usd / raw_income_usd, 1.0)
+
+
+def _descale_recommended_amount_usd(recommended_amount_usd, payload):
+    """Convert model-output amount from scaled USD space back to real-user USD."""
+    try:
+        amount = float(recommended_amount_usd)
+    except (TypeError, ValueError):
+        return 0.0
+    scale = _payload_income_scale(payload)
+    return amount / scale if scale > 1.0 else amount
+
+
 def _find_user_by_login_identifier(identifier):
     """Find a user by email first, then fall back to username for legacy accounts."""
     normalized = (identifier or '').strip().lower()
@@ -194,16 +229,32 @@ def recommend_amount(request):
     if language not in ('en', 'fr', 'rw'):
         language = 'en'
     try:
-        amount_usd = recommend_loan_amount(payload)
+        amount_usd_scaled = recommend_loan_amount(payload)
+        amount_usd = _descale_recommended_amount_usd(amount_usd_scaled, payload)
         # Cap at what the income can actually afford (35% DTI ceiling).
-        # payload has AnnualIncome in USD already (converted by frontend formToMlPayload).
-        monthly_income_usd = float(payload.get('AnnualIncome', 1)) / 12
+        # Prefer original RWF income when provided by clients; fallback to model-scale USD.
+        raw_income_rwf = _get_numeric(payload, ('AnnualIncomeRWF', 'annual_income_rwf', 'annual_income'))
+        if raw_income_rwf and raw_income_rwf > 0:
+            annual_income_usd_for_cap = raw_income_rwf / _RWF_TO_USD
+        else:
+            annual_income_usd_for_cap = max(_get_numeric(payload, ('AnnualIncome',), 1.0), 1.0)
+
+        monthly_income_usd = annual_income_usd_for_cap / 12
         duration = int(payload.get('LoanDuration') or 24)
         max_affordable_usd = monthly_income_usd * _MAX_DTI * duration
         amount_usd = min(amount_usd, max_affordable_usd)
+
         # Convert USD-scale model output back to RWF for display
         amount = amount_usd * _RWF_TO_USD
-        amount_info = recommend_amount_explanation(payload, amount_usd, language)
+
+        # Explanations should reflect the user's original RWF values, not scaled ML values.
+        explain_payload = dict(payload)
+        raw_loan_rwf = _get_numeric(payload, ('LoanAmountRWF', 'loan_amount_rwf', 'loan_amount_requested'))
+        if raw_income_rwf and raw_income_rwf > 0:
+            explain_payload['AnnualIncome'] = raw_income_rwf
+        if raw_loan_rwf and raw_loan_rwf > 0:
+            explain_payload['LoanAmount'] = raw_loan_rwf
+        amount_info = recommend_amount_explanation(explain_payload, amount, language)
         return Response({
             'recommended_amount': amount,
             'recommendedAmount': amount,
@@ -914,6 +965,11 @@ def farmer_profile(request):
             return Response({'error': 'Profile photo must be an image.'}, status=status.HTTP_400_BAD_REQUEST)
         if getattr(photo_file, 'size', 0) > 5 * 1024 * 1024:
             return Response({'error': 'Profile photo must be 5MB or smaller.'}, status=status.HTTP_400_BAD_REQUEST)
+        photo_bytes = photo_file.read()
+        photo_file.seek(0)
+        profile.profile_photo_data = photo_bytes
+        profile.profile_photo_content_type = content_type[:100]
+        profile.profile_photo_name = str(getattr(photo_file, 'name', '') or '')[:255]
         if profile.profile_photo:
             try:
                 profile.profile_photo.delete(save=False)
@@ -1157,6 +1213,8 @@ def farmer_applications(request):
             fertilizer_records_count=int(data.get('fertilizer_records_count', 0) or 0),
         )
         payload = _application_to_ml_payload(app)
+        payload['AnnualIncomeRWF'] = float(app.annual_income)
+        payload['LoanAmountRWF'] = float(app.loan_amount_requested)
         app_lang = (data.get('language') or data.get('lang') or 'en')
         app_lang = str(app_lang).strip().lower()[:2]
         if app_lang not in ('en', 'fr', 'rw'):
@@ -1166,7 +1224,8 @@ def farmer_applications(request):
             app.eligibility_reason = eligibility_reason(payload, app.eligibility_approved, app_lang)
             app.risk_score = predict_risk(payload)
             if app.eligibility_approved:
-                raw_rec_usd = recommend_loan_amount(payload)
+                raw_rec_usd_scaled = recommend_loan_amount(payload)
+                raw_rec_usd = _descale_recommended_amount_usd(raw_rec_usd_scaled, payload)
                 # Cap recommended amount to 35% DTI affordable maximum
                 annual_income_usd = float(app.annual_income) / _RWF_TO_USD
                 monthly_income_usd = annual_income_usd / 12

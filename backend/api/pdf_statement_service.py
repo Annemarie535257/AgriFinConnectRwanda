@@ -39,6 +39,12 @@ _AMOUNT_RE = re.compile(r"\b(\d[\d,\s]*(?:\.\d{1,2})?)\b")
 # Debit / credit markers
 _DEBIT_KEYWORDS  = re.compile(r"\b(debit|dr|withdrawal|payment|purchase|transfer out|fee)\b", re.I)
 _CREDIT_KEYWORDS = re.compile(r"\b(credit|cr|deposit|receive|transfer in|salary|income)\b", re.I)
+_NON_TRANSACTION_LINE_RE = re.compile(
+    r"\b(opening balance|closing balance|balance brought forward|brought forward|carried forward|"
+    r"statement period|period covered|account number|account no|page\s*\d+|available balance|"
+    r"current balance|ledger balance|print date|generated on)\b",
+    re.I,
+)
 
 # ---------------------------------------------------------------------------
 # Bank statement document validator
@@ -58,13 +64,29 @@ _STATEMENT_KEYWORD_GROUPS = [
         re.I,
     ),
     # Group 3 — transaction table markers
-    re.compile(r"\b(debit|credit|withdrawal|deposit|transfer|dr\b|cr\b|retrait|versement|virement)\b", re.I),
+    re.compile(r"\b(debit|credit|withdrawal|deposit|dr\b|cr\b|retrait|versement|virement)\b", re.I),
     # Group 4 — bank/financial institution names or generic "bank"
     re.compile(r"\b(bank|microfinance|savings|equity|cogebanque|kcb|i&m|bk|access|gt bank|zenith|brd|umurenge)\b", re.I),
     # Group 5 — statement period / date range header
-    re.compile(r"\b(from|to|period|statement date|as at|date range|print date|periode|date d'impression)\b", re.I),
+    re.compile(r"\b(statement period|period covered|date range|statement date|as at|print date|periode|date d'impression)\b", re.I),
 ]
 _MIN_STATEMENT_GROUPS = 3   # document must satisfy at least this many groups
+
+_EXPLICIT_STATEMENT_IDENTITY_RE = re.compile(
+    r"\b(bank statement|statement of account|account statement|releve de compte|extrait de compte)\b",
+    re.I,
+)
+
+_ACCOUNT_NUMBER_RE = re.compile(
+    r"\b(account\s*(number|no|#)\s*[:\-]?\s*[a-z0-9\-]{6,}|iban\s*[:\-]?\s*[a-z0-9]{10,})\b",
+    re.I,
+)
+
+_NON_STATEMENT_KEYWORDS_RE = re.compile(
+    r"\b(invoice|quotation|receipt|delivery note|report card|medical report|lab report|"
+    r"school report|marksheet|contract|agreement|proposal|cv|resume|minutes|attendance)\b",
+    re.I,
+)
 
 
 def _count_transaction_like_lines(full_text: str) -> int:
@@ -79,6 +101,21 @@ def _count_transaction_like_lines(full_text: str) -> int:
     return count
 
 
+def _count_strong_transaction_rows(full_text: str) -> int:
+    """Count lines that look like table rows (date + at least two amounts)."""
+    count = 0
+    for raw_line in full_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not _DATE_RE.search(line):
+            continue
+        amount_count = sum(1 for _ in _AMOUNT_RE.finditer(line))
+        if amount_count >= 2:
+            count += 1
+    return count
+
+
 def _check_is_bank_statement(full_text: str) -> tuple[bool, str]:
     """
     Heuristically decide whether *full_text* looks like a bank statement.
@@ -86,7 +123,10 @@ def _check_is_bank_statement(full_text: str) -> tuple[bool, str]:
     Returns (is_valid, reason_string).
     """
     if not full_text or len(full_text.strip()) < 50:
-        return False, "PDF appears to be empty or contains no extractable text."
+        return False, (
+            "PDF appears empty or contains no extractable text. "
+            "If this is a scanned image PDF, run OCR first or upload a text-based bank statement PDF."
+        )
 
     group_matches = [bool(pat.search(full_text)) for pat in _STATEMENT_KEYWORD_GROUPS]
     matched_groups = sum(group_matches)
@@ -94,18 +134,50 @@ def _check_is_bank_statement(full_text: str) -> tuple[bool, str]:
     # Named signals to keep heuristics strict enough for non-statement PDFs.
     has_identity_signal = group_matches[0] or group_matches[3]   # account/statement wording or bank name
     has_tx_signal = group_matches[2]                             # debit/credit markers
+    has_balance_signal = group_matches[1]
+    has_explicit_identity = bool(_EXPLICIT_STATEMENT_IDENTITY_RE.search(full_text))
+    has_account_number = bool(_ACCOUNT_NUMBER_RE.search(full_text))
 
     # Supplemental evidence for valid statements that use unusual headers/layouts.
     date_hits = len(_DATE_RE.findall(full_text))
     amount_hits = len(_AMOUNT_RE.findall(full_text))
     tx_like_lines = _count_transaction_like_lines(full_text)
+    strong_tx_rows = _count_strong_transaction_rows(full_text)
 
     has_tabular_evidence = (
         tx_like_lines >= 4
         or (date_hits >= 6 and amount_hits >= 12)
     )
+    has_dense_transaction_table = (
+        strong_tx_rows >= 8
+        and tx_like_lines >= 12
+        and amount_hits >= 20
+    )
 
-    if matched_groups >= _MIN_STATEMENT_GROUPS:
+    non_statement_hits = len(_NON_STATEMENT_KEYWORDS_RE.findall(full_text))
+    if non_statement_hits >= 2 and not has_explicit_identity:
+        return (
+            False,
+            "This document appears to be a generic report/invoice/record rather than a bank statement.",
+        )
+
+    has_min_numeric_evidence = (date_hits >= 3 and amount_hits >= 6) or tx_like_lines >= 2
+
+    # Strong acceptance path: explicit statement identity + enough transaction/balance evidence.
+    if has_explicit_identity and has_min_numeric_evidence and (has_tx_signal or has_balance_signal):
+        return True, "ok_explicit"
+
+    # Fallback acceptance path for statements where headings are not extracted cleanly
+    # but the body is clearly a dense transaction table.
+    if has_dense_transaction_table and non_statement_hits == 0:
+        return True, "ok_dense_transactions"
+
+    # Accept statements that omit explicit title but still show account + balances + row patterns.
+    if has_account_number and has_balance_signal and has_tx_signal and tx_like_lines >= 4 and amount_hits >= 10:
+        return True, "ok_account_number"
+
+    # Conservative acceptance path when explicit identity is missing.
+    if matched_groups >= _MIN_STATEMENT_GROUPS and has_identity_signal and has_min_numeric_evidence and has_tx_signal:
         return True, "ok"
 
     # Allow likely statements when keyword groups are low but transaction evidence is strong.
@@ -117,7 +189,8 @@ def _check_is_bank_statement(full_text: str) -> tuple[bool, str]:
             False,
             f"This document does not appear to be a bank statement "
             f"(matched only {matched_groups}/{len(_STATEMENT_KEYWORD_GROUPS)} expected keyword groups; "
-            f"found {tx_like_lines} transaction-like lines, {date_hits} date patterns, {amount_hits} amount patterns). "
+            f"found {tx_like_lines} transaction-like lines, {strong_tx_rows} strong transaction rows, "
+            f"{date_hits} date patterns, {amount_hits} amount patterns). "
             "Please upload a valid bank statement PDF.",
         )
     return True, "ok"
@@ -191,6 +264,9 @@ def _extract_rows_from_table(table: list[list[str | None]]) -> list[dict]:
         if not row or all(c is None or str(c).strip() == "" for c in row):
             continue
         cells = [str(c or "").strip() for c in row]
+        row_text = " ".join(cells)
+        if _NON_TRANSACTION_LINE_RE.search(row_text):
+            continue
 
         # ------ Date ------
         date_val: datetime | None = None
@@ -202,6 +278,8 @@ def _extract_rows_from_table(table: list[list[str | None]]) -> list[dict]:
                 date_val = _parse_date(cell)
                 if date_val:
                     break
+        if not date_val:
+            continue
 
         # ------ Description / type ------
         desc = ""
@@ -225,25 +303,29 @@ def _extract_rows_from_table(table: list[list[str | None]]) -> list[dict]:
         credit_col = next((header_map.get(k) for k in ("credit", "cr", "deposits", "receipts") if k in header_map), None)
         balance_col = next((header_map.get(k) for k in ("balance", "running balance", "available balance") if k in header_map), None)
 
-        if debit_col is not None and debit_col < len(cells):
-            amount = _parse_amount(cells[debit_col])
-        if amount is None and credit_col is not None and credit_col < len(cells):
-            amount = _parse_amount(cells[credit_col])
-            if amount:
-                tx_type = "Credit"
+        debit_amt = _parse_amount(cells[debit_col]) if (debit_col is not None and debit_col < len(cells)) else None
+        credit_amt = _parse_amount(cells[credit_col]) if (credit_col is not None and credit_col < len(cells)) else None
+        if credit_amt and credit_amt > 0 and (not debit_amt or debit_amt <= 0):
+            amount = credit_amt
+            tx_type = "Credit"
+        elif debit_amt and debit_amt > 0:
+            amount = debit_amt
+            tx_type = "Debit"
         if balance_col is not None and balance_col < len(cells):
             balance = _parse_amount(cells[balance_col])
 
         # Fallback: grab largest two numbers from the row
         if amount is None or balance is None:
-            numeric_vals = sorted(
-                [_parse_amount(c) for c in cells if _parse_amount(c) is not None],
-                reverse=True,
-            )
+            numeric_vals = []
+            for cell in cells:
+                parsed = _parse_amount(cell)
+                if parsed is not None:
+                    numeric_vals.append(parsed)
+            numeric_vals = sorted(numeric_vals)
             if len(numeric_vals) >= 2 and amount is None:
-                amount = numeric_vals[1]   # second largest = likely amount
+                amount = numeric_vals[0]   # usually transaction amount
             if len(numeric_vals) >= 1 and balance is None:
-                balance = numeric_vals[0]  # largest = likely balance
+                balance = numeric_vals[-1]  # usually running balance
 
         if amount is None or amount <= 0:
             continue  # skip rows with no amount
@@ -254,6 +336,8 @@ def _extract_rows_from_table(table: list[list[str | None]]) -> list[dict]:
             "tx_type": tx_type,
             "amount": amount,
             "balance": balance or 0.0,
+            "source": "table",
+            "raw_text": row_text[:240],
         })
     return rows
 
@@ -267,11 +351,27 @@ def _extract_rows_from_text(text: str) -> list[dict]:
         line = line.strip()
         if not line:
             continue
+        if _NON_TRANSACTION_LINE_RE.search(line):
+            continue
         date_val = _parse_date(line)
-        amounts = [float(m.group(1).replace(",", "")) for m in _AMOUNT_RE.finditer(line.replace(" ", "")) if float(m.group(1).replace(",", "")) > 0]
+        line_for_amounts = line
+        date_match = _DATE_RE.search(line)
+        if date_match:
+            line_for_amounts = (line[:date_match.start()] + " " + line[date_match.end():]).strip()
+        amounts = [
+            float(m.group(1).replace(",", ""))
+            for m in _AMOUNT_RE.finditer(line_for_amounts.replace(" ", ""))
+            if float(m.group(1).replace(",", "")) > 0
+        ]
         if not date_val or len(amounts) < 1:
             continue
-        amount = amounts[0] if len(amounts) == 1 else sorted(amounts)[len(amounts) // 2]
+
+        has_tx_keyword = bool(_DEBIT_KEYWORDS.search(line) or _CREDIT_KEYWORDS.search(line))
+        if not has_tx_keyword:
+            continue
+
+        sorted_amounts = sorted(amounts)
+        amount = sorted_amounts[0]
         balance = max(amounts) if len(amounts) >= 2 else 0.0
         tx_type = _detect_tx_type(line)
         rows.append({
@@ -280,6 +380,8 @@ def _extract_rows_from_text(text: str) -> list[dict]:
             "tx_type": tx_type,
             "amount": amount,
             "balance": balance,
+            "source": "text",
+            "raw_text": line[:240],
         })
     return rows
 
@@ -365,7 +467,7 @@ def analyze_statement(file_obj: Any, customer_age: int = 35, occupation: str = "
             "parse_warnings": [str],
         }
     """
-    from api.fraud_service import predict_fraud
+    from api.fraud_service import predict_fraud, FraudModelUnavailable
 
     raw_rows = extract_transactions_from_pdf(file_obj)
     if not raw_rows:
@@ -376,6 +478,11 @@ def analyze_statement(file_obj: Any, customer_age: int = 35, occupation: str = "
             "transactions": [],
             "parse_warnings": ["No transactions could be extracted from the PDF. "
                                 "Ensure the PDF contains a standard bank statement table."],
+            "extraction_diagnostics": {
+                "raw_rows_extracted": 0,
+                "source_breakdown": {"table": 0, "text": 0},
+                "sample_rows_considered": [],
+            },
         }
 
     results = []
@@ -418,6 +525,10 @@ def analyze_statement(file_obj: Any, customer_age: int = 35, occupation: str = "
                 "risk_level":        fraud_result["risk_level"],
                 "anomaly_score":     fraud_result["anomaly_score"],
             })
+        except FraudModelUnavailable:
+            # Model load/runtime incompatibility should fail the whole request,
+            # not create dozens of row-level warnings.
+            raise
         except Exception as exc:
             parse_warnings.append(f"Row {idx + 1}: {exc}")
             logger.warning("Failed to analyse row %d: %s", idx + 1, exc)
@@ -431,6 +542,23 @@ def analyze_statement(file_obj: Any, customer_age: int = 35, occupation: str = "
         "high_risk_count":    len(high_risk),
         "transactions":       results,
         "parse_warnings":     parse_warnings,
+        "extraction_diagnostics": {
+            "raw_rows_extracted": len(raw_rows),
+            "source_breakdown": {
+                "table": sum(1 for r in raw_rows if r.get("source") == "table"),
+                "text": sum(1 for r in raw_rows if r.get("source") == "text"),
+            },
+            "sample_rows_considered": [
+                {
+                    "source": r.get("source", "unknown"),
+                    "date": r.get("date").strftime("%Y-%m-%d") if r.get("date") else None,
+                    "amount": round(float(r.get("amount", 0.0)), 2),
+                    "balance": round(float(r.get("balance", 0.0)), 2),
+                    "raw_text": str(r.get("raw_text") or "")[:180],
+                }
+                for r in raw_rows[:8]
+            ],
+        },
     }
 
 
@@ -493,4 +621,5 @@ def flag_statement(file_obj: Any, customer_age: int = 35, occupation: str = "Eng
         "worst_transaction":    worst_tx,
         "transactions":         transactions,
         "parse_warnings":       analysis["parse_warnings"],
+        "extraction_diagnostics": analysis.get("extraction_diagnostics", {}),
     }

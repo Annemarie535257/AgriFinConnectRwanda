@@ -27,6 +27,13 @@ const EMPLOYMENT_OPTIONS = ['Employed', 'Self-Employed', 'Unemployed'];
 const EDUCATION_OPTIONS = ['High School', 'Associate', 'Bachelor', 'Master'];
 const MARITAL_OPTIONS = ['Single', 'Married', 'Divorced'];
 const PURPOSE_OPTIONS = ['Farming', 'Education', 'Home', 'Debt Consolidation', 'Other'];
+const FALLBACK_REQUIRED_DOCUMENTS = [
+  { document_type: 'national_id', required: true, name: 'National ID or Passport' },
+  { document_type: 'proof_of_income', required: true, name: 'Proof of income / Bank statements' },
+  { document_type: 'marital_status_certificate', required: true, name: 'Marital status certificate' },
+  { document_type: 'recommendation_letter', required: true, name: 'Recommendation letter' },
+  { document_type: 'spouse_id', required: false, name: 'Spouse ID (if married)' },
+];
 
 
 
@@ -69,8 +76,14 @@ function formToMlPayload(form) {
   return {
     Age: Number(form.age) || 35,
     AnnualIncome: incomeUSD,
+    AnnualIncomeRWF: Number(form.annual_income) || 0,
+    annual_income: Number(form.annual_income) || 0,
+    annual_income_rwf: Number(form.annual_income) || 0,
     CreditScore: Number(form.credit_score) || 600,
     LoanAmount: loanUSD,
+    LoanAmountRWF: Number(form.loan_amount_requested) || 0,
+    loan_amount_requested: Number(form.loan_amount_requested) || 0,
+    loan_amount_rwf: Number(form.loan_amount_requested) || 0,
     LoanDuration: loanDuration,
     EmploymentStatus: form.employment_status || 'Self-Employed',
     EducationLevel: form.education_level || 'High School',
@@ -167,6 +180,9 @@ export default function FarmerDashboard() {
   const [downloadingPackageId, setDownloadingPackageId] = useState(null);
   const [modelLoading, setModelLoading] = useState(null); // 'eligibility' | 'risk' | 'recommend' | null
   const [modelResults, setModelResults] = useState({ eligibility: null, risk: null, recommend: null });
+  const [recommendationSuggested, setRecommendationSuggested] = useState(false);
+  const [recommendationApplied, setRecommendationApplied] = useState(false);
+  const [recommendationLocked, setRecommendationLocked] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
   // Form state for loan application
@@ -561,6 +577,12 @@ export default function FarmerDashboard() {
 
   const handleSubmitApplication = async (e) => {
     e.preventDefault();
+    if (!canSubmitApplication) {
+      setError(
+        `${t('farmer.missingRequiredDocs') || 'Please upload all required documents before submitting.'} ${missingRequiredDocumentLabels.join(', ')}`
+      );
+      return;
+    }
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -613,6 +635,9 @@ export default function FarmerDashboard() {
       }
       setSuccess(t('farmer.applicationSubmitted') || 'Application submitted successfully!');
       setModelResults({ eligibility: null, risk: null, recommend: null });
+      setRecommendationSuggested(false);
+      setRecommendationApplied(false);
+      setRecommendationLocked(false);
       setForm({
         age: 35,
         annual_income: 600000,
@@ -645,6 +670,9 @@ export default function FarmerDashboard() {
     setModelResults({ eligibility: null, risk: null, recommend: null });
     try {
       const data = await predictEligibility(formToMlPayload(form), language);
+      if (data?.approved === false && recommendationApplied) {
+        setRecommendationLocked(true);
+      }
       setModelResults({
         eligibility: data,
         risk: null,
@@ -681,10 +709,21 @@ export default function FarmerDashboard() {
     if (modelResults.eligibility?.approved !== false) {
       return;
     }
+    if (recommendationLocked) {
+      setModelResults((r) => ({
+        ...r,
+        recommend: {
+          error: t('farmer.recommendationLimitMessage')
+            || 'Recommendation has already been used once and eligibility is still denied. Focus on improving key factors like debt-to-income ratio, credit score, employment stability, or income evidence before requesting another recommendation.',
+        },
+      }));
+      return;
+    }
     setModelLoading('recommend');
     setModelResults((r) => ({ ...r, recommend: null }));
     try {
       const data = await recommendLoanAmount(formToMlPayload(form), language);
+      setRecommendationSuggested(true);
       setModelResults((r) => ({ ...r, recommend: data }));
     } catch (err) {
       setModelResults((r) => ({ ...r, recommend: { error: err.body?.error || err.message || 'Model unavailable' } }));
@@ -698,11 +737,29 @@ export default function FarmerDashboard() {
     setProfileForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleProfilePhotoChange = (e) => {
+  const handleProfilePhotoChange = async (e) => {
     const selected = e.target.files?.[0] || null;
     if (!selected) return;
+
     setProfilePhotoFile(selected);
     setProfilePhotoPreview(URL.createObjectURL(selected));
+
+    // Persist immediately so a page refresh keeps the new photo.
+    const data = new FormData();
+    data.append('profile_photo', selected);
+    setProfileSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await updateFarmerProfile(data);
+      setProfile(res);
+      setProfilePhotoFile(null);
+      setSuccess(t('farmer.profilePhotoUploaded') || 'Profile photo uploaded and saved.');
+    } catch (err) {
+      setError(err.body?.error || err.message || 'Failed to upload profile photo');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleUpdateProfile = async (e) => {
@@ -787,6 +844,26 @@ export default function FarmerDashboard() {
   const eligibilityApproved = modelResults.eligibility?.approved === true;
   const eligibilityRejected = modelResults.eligibility?.approved === false;
   const canRunRiskAndRecommendation = eligibilityRejected;
+  const recommendationLimitReached = recommendationLocked && eligibilityRejected;
+  const effectiveRequiredDocuments = requiredDocuments.length > 0 ? requiredDocuments : FALLBACK_REQUIRED_DOCUMENTS;
+  const requiresSpouseId = String(form.marital_status || '').toLowerCase() === 'married';
+  const requiredDocumentTypesWithConditions = Array.from(
+    new Set([
+      ...effectiveRequiredDocuments.filter((doc) => doc.required).map((doc) => doc.document_type),
+      ...(requiresSpouseId ? ['spouse_id'] : []),
+    ])
+  );
+  const missingRequiredDocumentTypes = requiredDocumentTypesWithConditions.filter((docType) => {
+    const selected = documentFiles[docType];
+    return !(selected && selected instanceof File);
+  });
+  const requiredDocumentLabelByType = new Map(
+    effectiveRequiredDocuments.map((doc) => [doc.document_type, doc.name || doc.document_type])
+  );
+  const missingRequiredDocumentLabels = missingRequiredDocumentTypes.map((docType) => (
+    requiredDocumentLabelByType.get(docType) || docType
+  ));
+  const canSubmitApplication = !loading && missingRequiredDocumentTypes.length === 0;
 
   return (
     <div className="dashboard-page farmer-dashboard">
@@ -1028,7 +1105,7 @@ export default function FarmerDashboard() {
             </div>
 
             {/* Required documents for loan application in Rwanda */}
-            {requiredDocuments.length > 0 && (
+            {effectiveRequiredDocuments.length > 0 && (
               <div className="farmer-dashboard__documents-section">
                 <h3 className="farmer-dashboard__documents-title">
                   {t('farmer.requiredDocumentsTitle') || 'Required documents for loan application'}
@@ -1036,12 +1113,17 @@ export default function FarmerDashboard() {
                 <p className="farmer-dashboard__documents-intro">
                   {t('farmer.requiredDocumentsIntro') || 'You can upload documents now or after submitting. PDF or image (JPG, PNG) preferred.'}
                 </p>
+                <p className="farmer-dashboard__documents-intro">
+                  {t('farmer.requiredDocumentsRefreshHint') || 'Note: selected files are kept in this browser tab until you submit the application. If you refresh before submitting, you will need to select them again.'}
+                </p>
                 <ul className="farmer-dashboard__documents-list">
-                  {requiredDocuments.map((doc) => (
+                  {effectiveRequiredDocuments.map((doc) => (
                     <li key={doc.document_type} className="farmer-dashboard__documents-item">
                       <div className="farmer-dashboard__documents-item-header">
                         <span className="farmer-dashboard__documents-name">{doc.name}</span>
-                        {doc.required && <span className="farmer-dashboard__documents-required">{t('farmer.required') || 'Required'}</span>}
+                        {(doc.required || (requiresSpouseId && doc.document_type === 'spouse_id')) && (
+                          <span className="farmer-dashboard__documents-required">{t('farmer.required') || 'Required'}</span>
+                        )}
                       </div>
                       {doc.description && <p className="farmer-dashboard__documents-desc">{doc.description}</p>}
                       <div className="farmer-dashboard__documents-upload">
@@ -1062,6 +1144,11 @@ export default function FarmerDashboard() {
                     </li>
                   ))}
                 </ul>
+                {missingRequiredDocumentLabels.length > 0 && (
+                  <p className="farmer-dashboard__documents-missing" role="alert">
+                    {t('farmer.missingRequiredDocs') || 'Please upload all required documents before submitting.'} {missingRequiredDocumentLabels.join(', ')}
+                  </p>
+                )}
               </div>
             )}
 
@@ -1080,6 +1167,12 @@ export default function FarmerDashboard() {
                     ? (t('farmer.modelPreviewRejectedUnlockHint') || 'Eligibility was rejected, so you can now check the risk score and recommended amount.')
                     : (t('farmer.modelPreviewOrderHint') || 'Check eligibility first. Risk score and recommended amount are only available when eligibility is rejected.'))}
               </p>
+              {recommendationLimitReached && (
+                <p className="farmer-dashboard__model-hint farmer-dashboard__model-warn" role="alert">
+                  {t('farmer.recommendationLimitMessage')
+                    || 'Recommendation has already been used once and eligibility is still denied. Improve key factors such as debt-to-income ratio, credit score, employment stability, and proof of income before trying again.'}
+                </p>
+              )}
               <div className="farmer-dashboard__model-buttons">
                 <button
                   type="button"
@@ -1101,7 +1194,7 @@ export default function FarmerDashboard() {
                   type="button"
                   className="farmer-dashboard__model-btn"
                   onClick={handleGetRecommendation}
-                  disabled={loading || !!modelLoading || !canRunRiskAndRecommendation}
+                  disabled={loading || !!modelLoading || !canRunRiskAndRecommendation || recommendationLimitReached}
                 >
                   {modelLoading === 'recommend' ? (t('getStarted.submitting') || 'Loading…') : (t('card3.submit') || 'Get recommended amount')}
                 </button>
@@ -1149,11 +1242,21 @@ export default function FarmerDashboard() {
                             className="farmer-dashboard__model-btn farmer-dashboard__model-btn--small"
                             onClick={() => {
                               const amt = modelResults.recommend.recommended_amount ?? modelResults.recommend.recommendedAmount ?? modelResults.recommend.amount;
-                              if (amt != null) setForm((f) => ({ ...f, loan_amount_requested: parseFloat(amt) }));
+                              if (amt != null) {
+                                setRecommendationApplied(true);
+                                setForm((f) => ({ ...f, loan_amount_requested: parseFloat(amt) }));
+                              }
                             }}
+                            disabled={recommendationLimitReached || !recommendationSuggested}
                           >
                             {t('farmer.modelUseAmount') || 'Use this amount'}
                           </button>
+                          {recommendationApplied && (
+                            <p className="farmer-dashboard__model-note">
+                              {t('farmer.modelPredictionOfficerReviewNote')
+                                || 'This is an AI prediction. You can still submit your loan application so an MFI officer can review your case and provide the actual feedback.'}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1162,7 +1265,12 @@ export default function FarmerDashboard() {
               )}
             </div>
 
-            <button type="submit" className="farmer-dashboard__submit" disabled={loading}>
+            <button
+              type="submit"
+              className="farmer-dashboard__submit"
+              disabled={!canSubmitApplication}
+              title={!canSubmitApplication && missingRequiredDocumentLabels.length > 0 ? missingRequiredDocumentLabels.join(', ') : ''}
+            >
               {loading ? t('getStarted.submitting') : t('farmer.submitApplication') || 'Submit application'}
             </button>
           </form>
