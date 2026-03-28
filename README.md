@@ -11,7 +11,7 @@ DEMO LINK: https://drive.google.com/file/d/1loEs-dxLta9XgLZvLriXO-GBeUfeL_SX/vie
 
 ## Live Deployment
 
-Frontend (Netlify): https://agrifinconnectrwanda.netlify.app/
+Platform: https://agrifinconnect.online/
 
 Backend API Docs (Render Swagger): https://agrifinconnectrwanda.onrender.com/swagger/
 
@@ -34,12 +34,12 @@ AgriFinConnect Rwanda is an end-to-end platform that combines:
 ```
 Browser
   |
-  +-- React + Vite (Netlify)
+  +-- React + Vite (Production web app)
        |  /api/*  (proxy in dev, direct in prod)
        v
   Django REST Framework (Render, port 8080)
        |
-       +-- Authentication (register, login, JWT, password reset)
+     +-- Authentication (register, login, token auth, password reset)
        +-- Farmer Portal   (applications, documents, loans, repayments, packages)
        +-- MFI Portal      (review applications, update status, portfolio stats)
        +-- Admin Portal    (user management, stats, application oversight)
@@ -123,7 +123,6 @@ AgriFinConnectRwanda/
 |   +-- config/
 |   |   +-- settings.py             # Django settings (MODELS_DIR, CORS, etc.)
 |   |   +-- urls.py                 # Root URL conf (/api/, /swagger/, /redoc/)
-|   +-- requirements.txt            # Full backend dependencies
 |   +-- manage.py
 |   +-- db.sqlite3
 |
@@ -187,9 +186,7 @@ AgriFinConnectRwanda/
 |   +-- Bitext-mortgage-loans-llm-chatbot-training-dataset/
 |
 +-- render.yaml                     # Render deployment configuration
-+-- ML_MODELS_README.md             # ML model architecture + training details
-+-- USE_CASE_DIAGRAM.md             # Full use case diagram for all actors
-+-- requirements.txt                # Root DS requirements (notebooks)
++-- requirements.txt                # Unified project dependencies (backend + ML + notebooks + tests)
 +-- README.md
 ```
 
@@ -242,7 +239,7 @@ When an MFI officer approves a loan, the backend:
 | **Translation** | MarianMT (transformers + torch) |
 | **Database** | SQLite (dev/staging), PostgreSQL (production via `DATABASE_URL`) |
 | **File storage** | Django `MEDIA_ROOT` (`backend/media/loan_docs/`) |
-| **Deployment** | Netlify (frontend), Render (backend), Hugging Face Hub (chatbot model) |
+| **Deployment** | Production web platform https://agrifinconnect.online/, Render backend/API, Hugging Face Hub (chatbot model) |
 
 ---
 
@@ -260,8 +257,8 @@ py -3.11 -m venv venv
 .\venv\Scripts\Activate.ps1     # Windows PowerShell
 # source venv/bin/activate       # macOS / Linux
 
-cd backend
 pip install -r requirements.txt
+cd backend
 python manage.py migrate
 python manage.py runserver 8080
 ```
@@ -355,16 +352,6 @@ Keep the loan-to-income ratio low (≤ ~12 %) to keep the DTI under the model's 
    model.save_pretrained(save_dir)
    ```
 
-4. To push to Hugging Face Hub for Render deployment:
-
-   ```bash
-   python backend/push_chatbot_to_huggingface.py Annemarie535257/agrifinconnect-chatbot
-   ```
-
-See `ML_MODELS_README.md` for full architecture, feature transformation, and retraining details.
-
----
-
 ## 10. API Endpoints
 
 Base path: `/api/`
@@ -436,7 +423,11 @@ Full request/response schemas: http://127.0.0.1:8080/swagger/
 |---|---|
 | **Repayment schedule backfill** | Loans approved before the repayment schedule feature was added have 0 repayment rows. Run the backfill script or re-approve to generate them. |
 | **Duplicate approval guard** | `Loan.objects.get_or_create` prevents a `UNIQUE constraint` error if the approve button is clicked twice. |
-| **Currency conversion** | All monetary form inputs (income, loan amount) are in **RWF**. `ml_service.py` converts to USD using `RWF_TO_USD = 1350` before ML inference. |
+| **Currency conversion** | All farmer monetary inputs are in **RWF**. Frontend/backend payload builders convert to USD model-space using `RWF_TO_USD = 1350`, while API responses shown to users are returned in RWF. |
 | **Income scaling** | If a farmer's income is below the training distribution minimum, it is scaled up to `TARGET_INCOME_USD = 45,000` while preserving the loan/income ratio (DTI) so the model gives a meaningful prediction. |
+| **Recommendation loop guard** | Farmer dashboard allows one recommendation cycle per draft flow. If eligibility remains denied after applying the recommended amount, recommendation is locked and guidance is shown to improve key factors (DTI, credit, employment, evidence). |
 | **Mark paid — MFI only** | `PATCH /api/farmer/repayments/<id>/mark-paid/` always returns `403`. The "Mark paid" button does not exist on the farmer dashboard. |
 | **Auto-overdue** | On every `GET /api/mfi/portfolio/` call, any `pending` repayment whose `due_date < today` is automatically updated to `overdue`. |
+| **Statement scanner diagnostics** | Fraud statement scan responses include parser diagnostics (rows considered, source breakdown, warnings). Classification is content-based and requires valid transaction-row evidence, not only PDF extension. |
+| **Fraud model load failures** | Fraud model artifacts now load atomically. If environment versions are incompatible, the API fails fast with a clear model-unavailable error instead of noisy per-row failures. |
+| **Profile photo persistence** | Farmer profile photos are persisted in DB metadata and binary fields as well as file storage, so uploads are durable across refresh and deployment contexts. |
