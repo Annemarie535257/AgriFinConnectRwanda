@@ -49,12 +49,6 @@ export default function GetStartedPage() {
   }, [legalAcceptedJustNow, pendingRegisterRole]);
 
   const handleRequestRegister = (role) => {
-    if (legalAccepted) {
-      if (role === 'farmer') setFarmerMode('register');
-      if (role === 'microfinance') setMicrofinanceMode('register');
-      return;
-    }
-
     setPendingRegisterRole(role);
     setLegalGateOpen(true);
     setLegalAcceptedJustNow(false);
@@ -285,11 +279,6 @@ function AuthForms({ role, mode, onModeChange, onRequestRegister, onRegister, on
             type="button"
             className={`auth-forms__tab ${mode === 'register' ? 'auth-forms__tab--active' : ''}`}
             onClick={() => {
-              if (legalAccepted) {
-                onModeChange('register');
-                resetForm();
-                return;
-              }
               onRequestRegister(role);
             }}
           >

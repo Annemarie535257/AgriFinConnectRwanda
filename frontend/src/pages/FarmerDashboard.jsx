@@ -27,6 +27,25 @@ const EMPLOYMENT_OPTIONS = ['Employed', 'Self-Employed', 'Unemployed'];
 const EDUCATION_OPTIONS = ['High School', 'Associate', 'Bachelor', 'Master'];
 const MARITAL_OPTIONS = ['Single', 'Married', 'Divorced'];
 const PURPOSE_OPTIONS = ['Farming', 'Education', 'Home', 'Debt Consolidation', 'Other'];
+const DEFAULT_LOAN_FORM = {
+  age: 35,
+  annual_income: 600000,
+  credit_score: 600,
+  loan_amount_requested: 200000,
+  loan_duration_months: 24,
+  employment_status: 'Self-Employed',
+  education_level: 'High School',
+  marital_status: 'Married',
+  loan_purpose: 'Farming',
+  farming_crops_or_activity: '',
+  farming_land_size_hectares: 0,
+  farming_land_size_unit: 'ha',
+  farming_season: '',
+  farming_estimated_yield: 0,
+  farming_yield_unit: 'kg',
+  farming_livestock: '',
+  farming_notes: '',
+};
 const FALLBACK_REQUIRED_DOCUMENTS = [
   { document_type: 'national_id', required: true, name: 'National ID or Passport' },
   { document_type: 'proof_of_income', required: true, name: 'Proof of income / Bank statements' },
@@ -186,26 +205,7 @@ export default function FarmerDashboard() {
   const [resetLoading, setResetLoading] = useState(false);
 
   // Form state for loan application
-  const [form, setForm] = useState({
-    age: 35,
-    annual_income: 600000,
-    credit_score: 600,
-    loan_amount_requested: 200000,
-    loan_duration_months: 24,
-    employment_status: 'Self-Employed',
-    education_level: 'High School',
-    marital_status: 'Married',
-    loan_purpose: 'Farming',
-    // Farming / what they're planting
-    farming_crops_or_activity: '',
-    farming_land_size_hectares: '',
-    farming_land_size_unit: 'ha',
-    farming_season: '',
-    farming_estimated_yield: '',
-    farming_yield_unit: 'kg',
-    farming_livestock: '',
-    farming_notes: '',
-  });
+  const [form, setForm] = useState(DEFAULT_LOAN_FORM);
   // Required documents (Rwanda) — from API
   const [requiredDocuments, setRequiredDocuments] = useState([]);
   // Selected files per document_type for the current application
@@ -569,8 +569,14 @@ export default function FarmerDashboard() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    const exportFilenameByTab = {
+      employees: 'farm_employees_data.csv',
+      fertilizers: 'farm_fertilizers_data.csv',
+      seeds: 'farm_seed_stock_data.csv',
+      production: 'farm_production_data.csv',
+    };
     a.href = url;
-    a.download = 'farm_data.csv';
+    a.download = exportFilenameByTab[activeFarmTab] || 'farm_data.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -638,25 +644,7 @@ export default function FarmerDashboard() {
       setRecommendationSuggested(false);
       setRecommendationApplied(false);
       setRecommendationLocked(false);
-      setForm({
-        age: 35,
-        annual_income: 600000,
-        credit_score: 600,
-        loan_amount_requested: 200000,
-        loan_duration_months: 24,
-        employment_status: 'Self-Employed',
-        education_level: 'High School',
-        marital_status: 'Married',
-        loan_purpose: 'Farming',
-        farming_crops_or_activity: '',
-        farming_land_size_hectares: '',
-        farming_land_size_unit: 'ha',
-        farming_season: '',
-        farming_estimated_yield: '',
-        farming_yield_unit: 'kg',
-        farming_livestock: '',
-        farming_notes: '',
-      });
+      setForm(DEFAULT_LOAN_FORM);
       fetchData();
     } catch (err) {
       setError(err.body?.error || err.message || 'Failed to submit application');
@@ -666,6 +654,12 @@ export default function FarmerDashboard() {
   };
 
   const handleCheckEligibility = async () => {
+    if (missingRequiredDocumentLabels.length > 0) {
+      setError(
+        `${t('farmer.missingRequiredDocs') || 'Please upload all required documents before submitting.'} ${missingRequiredDocumentLabels.join(', ')}`
+      );
+      return;
+    }
     setModelLoading('eligibility');
     setModelResults({ eligibility: null, risk: null, recommend: null });
     try {
@@ -843,7 +837,7 @@ export default function FarmerDashboard() {
   const approvedCount = applications.filter((a) => a.status === 'approved').length;
   const eligibilityApproved = modelResults.eligibility?.approved === true;
   const eligibilityRejected = modelResults.eligibility?.approved === false;
-  const canRunRiskAndRecommendation = eligibilityRejected;
+  const canRunRiskAndRecommendation = eligibilityRejected && missingRequiredDocumentTypes.length === 0;
   const recommendationLimitReached = recommendationLocked && eligibilityRejected;
   const effectiveRequiredDocuments = requiredDocuments.length > 0 ? requiredDocuments : FALLBACK_REQUIRED_DOCUMENTS;
   const requiresSpouseId = String(form.marital_status || '').toLowerCase() === 'married';
@@ -909,7 +903,7 @@ export default function FarmerDashboard() {
                   min={18}
                   max={100}
                   value={form.age}
-                  onChange={(e) => setForm({ ...form, age: parseInt(e.target.value, 10) || 35 })}
+                  onChange={(e) => setForm({ ...form, age: parseInt(e.target.value, 10) || DEFAULT_LOAN_FORM.age })}
                 />
               </label>
               <label>
@@ -918,7 +912,7 @@ export default function FarmerDashboard() {
                   type="number"
                   min={0}
                   value={form.annual_income}
-                  onChange={(e) => setForm({ ...form, annual_income: parseInt(e.target.value, 10) || 0 })}
+                  onChange={(e) => setForm({ ...form, annual_income: parseInt(e.target.value, 10) || DEFAULT_LOAN_FORM.annual_income })}
                 />
               </label>
             </div>
@@ -930,7 +924,7 @@ export default function FarmerDashboard() {
                   min={300}
                   max={850}
                   value={form.credit_score}
-                  onChange={(e) => setForm({ ...form, credit_score: parseInt(e.target.value, 10) || 600 })}
+                  onChange={(e) => setForm({ ...form, credit_score: parseInt(e.target.value, 10) || DEFAULT_LOAN_FORM.credit_score })}
                 />
               </label>
               <label>
@@ -940,7 +934,7 @@ export default function FarmerDashboard() {
                   min={0}
                   step={0.01}
                   value={form.loan_amount_requested}
-                  onChange={(e) => setForm({ ...form, loan_amount_requested: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setForm({ ...form, loan_amount_requested: parseFloat(e.target.value) || DEFAULT_LOAN_FORM.loan_amount_requested })}
                 />
               </label>
             </div>
@@ -952,7 +946,7 @@ export default function FarmerDashboard() {
                   min={6}
                   max={84}
                   value={form.loan_duration_months}
-                  onChange={(e) => setForm({ ...form, loan_duration_months: parseInt(e.target.value, 10) || 24 })}
+                  onChange={(e) => setForm({ ...form, loan_duration_months: parseInt(e.target.value, 10) || DEFAULT_LOAN_FORM.loan_duration_months })}
                 />
               </label>
               <label>
@@ -1167,6 +1161,11 @@ export default function FarmerDashboard() {
                     ? (t('farmer.modelPreviewRejectedUnlockHint') || 'Eligibility was rejected, so you can now check the risk score and recommended amount.')
                     : (t('farmer.modelPreviewOrderHint') || 'Check eligibility first. Risk score and recommended amount are only available when eligibility is rejected.'))}
               </p>
+              {missingRequiredDocumentLabels.length > 0 && (
+                <p className="farmer-dashboard__model-hint farmer-dashboard__model-warn" role="alert">
+                  {t('farmer.missingRequiredDocs') || 'Please upload all required documents before submitting.'} {missingRequiredDocumentLabels.join(', ')}
+                </p>
+              )}
               {recommendationLimitReached && (
                 <p className="farmer-dashboard__model-hint farmer-dashboard__model-warn" role="alert">
                   {t('farmer.recommendationLimitMessage')
@@ -1178,7 +1177,7 @@ export default function FarmerDashboard() {
                   type="button"
                   className="farmer-dashboard__model-btn"
                   onClick={handleCheckEligibility}
-                  disabled={loading || !!modelLoading}
+                  disabled={loading || !!modelLoading || missingRequiredDocumentTypes.length > 0}
                 >
                   {modelLoading === 'eligibility' ? (t('card1.checking') || 'Checking…') : t('card1.submit') || 'Check eligibility'}
                 </button>
