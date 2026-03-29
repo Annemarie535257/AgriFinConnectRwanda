@@ -32,6 +32,7 @@ Notebooks/train_document_fraud_ai_altered_model.ipynb
 
 # Local-only architecture document (do not commit)
 PROJECT_ARCHITECTURE_LOCAL.md
+VIDEO_DEFENSE_SCRIPT.md
 
 # Netlify local/dev artifacts
 .netlify/

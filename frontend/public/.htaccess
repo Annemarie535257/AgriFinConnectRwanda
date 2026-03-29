@@ -1,0 +1,18 @@
+# Apache SPA fallback for React Router (BrowserRouter)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Do not rewrite API/static/media paths.
+  RewriteRule ^api/ - [L]
+  RewriteRule ^static/ - [L]
+  RewriteRule ^media/ - [L]
+
+  # Serve existing files and directories directly.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # For all other routes, serve index.html.
+  RewriteRule ^ index.html [L]
+</IfModule>
