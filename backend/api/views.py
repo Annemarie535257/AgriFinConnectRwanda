@@ -373,7 +373,7 @@ def fallback_sms(request):
     return Response({'success': bool(result.get('sent')), 'delivery': result}, status=status.HTTP_202_ACCEPTED)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def analyze_bank_statement(request):
     """
@@ -399,6 +399,19 @@ def analyze_bank_statement(request):
         "parse_warnings":       [...]
       }
     """
+    if request.method == 'GET':
+        return Response({
+            'message': 'Use POST with multipart/form-data to analyze a PDF bank statement.',
+            'endpoint': '/api/fraud-detect/statement/',
+            'required_fields': {
+                'file': 'PDF file',
+            },
+            'optional_fields': {
+                'customer_age': 'int (default: 35)',
+                'occupation': 'Doctor|Engineer|Retired|Student (default: Engineer)',
+            },
+        }, status=status.HTTP_200_OK)
+
     pdf_file = request.FILES.get('file')
     if not pdf_file:
         return Response({'error': 'No file uploaded. Send the PDF as "file" in multipart form data.'},

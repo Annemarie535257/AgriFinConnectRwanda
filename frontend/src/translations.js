@@ -303,7 +303,7 @@ export const translations = {
       settings: 'Settings',
       settingsDesc: 'Configure platform and model parameters.',
     },
-    apiError: 'Could not reach the API. If the backend is on Render, it may be waking up—try again in 30 seconds. Otherwise check that the API URL is set (e.g. VITE_API_URL on Netlify).',
+    apiError: 'Could not reach the API. Try again in 30 seconds, then verify your deployed API URL is configured correctly (for example VITE_API_URL).',
     farmer: {
       applicationSubmitted: 'Application submitted successfully!',
       profileUpdated: 'Profile updated.',
@@ -1130,7 +1130,7 @@ export const translations = {
       settings: 'Paramètres',
       settingsDesc: 'Configurer la plateforme et les modèles.',
     },
-    apiError: "Impossible de joindre l'API. Si le backend est sur Render, il peut être en démarrage — réessayez dans 30 secondes.",
+    apiError: "Impossible de joindre l'API. Réessayez dans 30 secondes, puis vérifiez que l'URL API déployée est correctement configurée (par exemple VITE_API_URL).",
     farmer: {
       applicationSubmitted: 'Demande soumise avec succès !',
       profileUpdated: 'Profil mis à jour.',
@@ -1957,7 +1957,7 @@ export const translations = {
       settings: 'Igenamiterere',
       settingsDesc: 'Konoza porogaramu n\'imodeli.',
     },
-    apiError: 'API ntiyashoboye. Nimba backend iri kuri Render, irashobora kuba irakura — subira ugerageze munsi y\'amasegonda 30.',
+    apiError: 'API ntiyashoboye. Ongera ugerageze mu masegonda 30, hanyuma urebe ko URL ya API yakoreshejwe mu kohereza yagenwe neza (urugero VITE_API_URL).',
     farmer: {
       applicationSubmitted: 'Gusaba byagenze neza!',
       profileUpdated: 'Profili yavuguruwe.',

@@ -5,11 +5,11 @@
  * and returns a user-friendly warming message during cold starts.
  */
 
+const siteUrl = (process.env.URL || process.env.DEPLOY_PRIME_URL || '').replace(/\/$/, '');
 const API_BASE = (
-  process.env.RENDER_API_URL ||
   process.env.API_BASE_URL ||
   process.env.VITE_API_URL ||
-  'https://agrifinconnectrwanda.onrender.com/api'
+  (siteUrl ? `${siteUrl}/api` : '')
 ).replace(/\/$/, '');
 
 const WARMING_MESSAGES = {
@@ -32,6 +32,12 @@ function json(statusCode, payload) {
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return json(405, { error: 'Method Not Allowed' });
+  }
+
+  if (!API_BASE) {
+    return json(500, {
+      error: 'Chat API base is not configured. Set API_BASE_URL or VITE_API_URL.',
+    });
   }
 
   let message = '';

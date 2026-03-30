@@ -200,13 +200,10 @@ export async function analyzeApplicationStatement(appId) {
   });
 }
 
-/** POST /.netlify/functions/chat (prod) or /api/chat/ (dev) */
+/** POST /api/chat/ */
 export async function chat(message, language = 'en') {
-  // In production (Netlify), use the serverless function to avoid Render's 30 s timeout.
-  // In local dev, call the Django backend directly via Vite's /api proxy.
-  const url = import.meta.env.PROD
-    ? '/.netlify/functions/chat'
-    : '/api/chat/';
+  // Use the configured API base for both dev and production deployments.
+  const url = `${API_BASE}/chat/`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
