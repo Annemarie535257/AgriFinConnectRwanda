@@ -658,12 +658,6 @@ export default function FarmerDashboard() {
   };
 
   const handleCheckEligibility = async () => {
-    if (missingRequiredDocumentLabels.length > 0) {
-      setError(
-        `${t('farmer.missingRequiredDocs') || 'Please upload all required documents before submitting.'} ${missingRequiredDocumentLabels.join(', ')}`
-      );
-      return;
-    }
     setModelLoading('eligibility');
     setModelResults({ eligibility: null, risk: null, recommend: null });
     try {
@@ -1181,7 +1175,7 @@ export default function FarmerDashboard() {
                   type="button"
                   className="farmer-dashboard__model-btn"
                   onClick={handleCheckEligibility}
-                  disabled={loading || !!modelLoading || missingRequiredDocumentTypes.length > 0}
+                  disabled={loading || !!modelLoading}
                 >
                   {modelLoading === 'eligibility' ? (t('card1.checking') || 'Checking…') : t('card1.submit') || 'Check eligibility'}
                 </button>
