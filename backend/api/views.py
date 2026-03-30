@@ -1236,8 +1236,13 @@ def farmer_applications(request):
         try:
             app.eligibility_approved = predict_eligibility(payload)
             app.eligibility_reason = eligibility_reason(payload, app.eligibility_approved, app_lang)
-            app.risk_score = predict_risk(payload)
+            # Business rule: once eligibility is approved, do not run/persist
+            # risk score or recommendation for final submitted applications.
             if app.eligibility_approved:
+                app.risk_score = None
+                app.recommended_amount = None
+            else:
+                app.risk_score = predict_risk(payload)
                 raw_rec_usd_scaled = recommend_loan_amount(payload)
                 raw_rec_usd = _descale_recommended_amount_usd(raw_rec_usd_scaled, payload)
                 # Cap recommended amount to 35% DTI affordable maximum
@@ -1247,8 +1252,6 @@ def farmer_applications(request):
                 max_affordable_usd = monthly_income_usd * _MAX_DTI * duration
                 rec_usd = min(raw_rec_usd, max_affordable_usd)
                 app.recommended_amount = rec_usd * _RWF_TO_USD
-            else:
-                app.recommended_amount = None
         except (FileNotFoundError, RuntimeError, KeyError):
             logger.exception('Loan application ML pipeline unavailable')
             return Response({'error': 'ML models not available right now. Please try again shortly.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)

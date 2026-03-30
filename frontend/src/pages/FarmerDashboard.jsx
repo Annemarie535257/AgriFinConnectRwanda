@@ -833,6 +833,7 @@ export default function FarmerDashboard() {
 
   const pendingCount = applications.filter((a) => a.status === 'pending').length;
   const approvedCount = applications.filter((a) => a.status === 'approved').length;
+  const canCheckEligibility = !modelLoading;
   const eligibilityApproved = modelResults.eligibility?.approved === true;
   const eligibilityRejected = modelResults.eligibility?.approved === false;
   const canRunRiskAndRecommendation = eligibilityRejected && missingRequiredDocumentTypes.length === 0;
@@ -1175,7 +1176,7 @@ export default function FarmerDashboard() {
                   type="button"
                   className="farmer-dashboard__model-btn"
                   onClick={handleCheckEligibility}
-                  disabled={loading || !!modelLoading}
+                  disabled={!canCheckEligibility}
                 >
                   {modelLoading === 'eligibility' ? (t('card1.checking') || 'Checking…') : t('card1.submit') || 'Check eligibility'}
                 </button>
