@@ -38,6 +38,7 @@ urlpatterns = [
     path('eligibility/', views.eligibility),
     path('risk/', views.risk),
     path('recommend-amount/', views.recommend_amount),
+    path('health/models/', views.model_health),
     path('fraud-detect/', views.fraud_detect),
     path('fraud-detect/statement/', views.analyze_bank_statement),
     path('chat/', views.chat),

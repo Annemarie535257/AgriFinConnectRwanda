@@ -28,6 +28,7 @@ from .explanations import (
 )
 from .ml_service import predict_eligibility, predict_risk, recommend_amount as recommend_loan_amount
 from .sms_service import send_sms
+from .model_health import get_model_health
 from .models import (
     GetStartedEvent,
     PasswordResetToken,
@@ -330,6 +331,19 @@ def fraud_detect(request):
         return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(
+    method='get',
+    operation_description='Model health check: verifies loan/fraud artifacts can load in current runtime and returns dependency versions.',
+    tags=['Health'],
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def model_health(request):
+    health = get_model_health()
+    code = status.HTTP_200_OK if health.get('status') == 'ok' else status.HTTP_503_SERVICE_UNAVAILABLE
+    return Response(health, status=code)
 
 
 @swagger_auto_schema(
