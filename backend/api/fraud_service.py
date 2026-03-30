@@ -49,6 +49,32 @@ class FraudModelUnavailable(RuntimeError):
     pass
 
 
+def _load_joblib_with_numpy_bitgen_compat(path: Path):
+    """Load joblib artifacts with a fallback for legacy numpy bit-generator pickles."""
+    try:
+        return joblib.load(path)
+    except ValueError as exc:
+        # Some older exported artifacts may persist the bit-generator as a class object
+        # instead of a name string, which newer runtimes reject.
+        if "is not a known BitGenerator module" not in str(exc):
+            raise
+
+        import numpy.random._pickle as np_random_pickle
+
+        original_ctor = np_random_pickle.__bit_generator_ctor
+
+        def _compat_ctor(bit_generator_name='MT19937'):
+            if isinstance(bit_generator_name, type):
+                bit_generator_name = bit_generator_name.__name__
+            return original_ctor(bit_generator_name)
+
+        np_random_pickle.__bit_generator_ctor = _compat_ctor
+        try:
+            return joblib.load(path)
+        finally:
+            np_random_pickle.__bit_generator_ctor = original_ctor
+
+
 def _load_artifacts():
     global _LOAD_ERROR
     if _artifacts:
@@ -59,12 +85,12 @@ def _load_artifacts():
         raise FileNotFoundError(f"Fraud model directory not found: {FRAUD_MODELS_DIR}")
     loaded = {}
     try:
-        loaded["feature_cols"] = joblib.load(FRAUD_MODELS_DIR / "fraud_feature_columns.pkl")
-        loaded["scaler"] = joblib.load(FRAUD_MODELS_DIR / "fraud_scaler.pkl")
-        loaded["encoders"] = joblib.load(FRAUD_MODELS_DIR / "fraud_encoders.pkl")
-        loaded["iso"] = joblib.load(FRAUD_MODELS_DIR / "fraud_isolation_forest.pkl")
+        loaded["feature_cols"] = _load_joblib_with_numpy_bitgen_compat(FRAUD_MODELS_DIR / "fraud_feature_columns.pkl")
+        loaded["scaler"] = _load_joblib_with_numpy_bitgen_compat(FRAUD_MODELS_DIR / "fraud_scaler.pkl")
+        loaded["encoders"] = _load_joblib_with_numpy_bitgen_compat(FRAUD_MODELS_DIR / "fraud_encoders.pkl")
+        loaded["iso"] = _load_joblib_with_numpy_bitgen_compat(FRAUD_MODELS_DIR / "fraud_isolation_forest.pkl")
         # Primary model: best Gradient Boosting regressor (risk score 0-100)
-        loaded["best_model"] = joblib.load(FRAUD_MODELS_DIR / "fraud_best_gradient_boosting.pkl")
+        loaded["best_model"] = _load_joblib_with_numpy_bitgen_compat(FRAUD_MODELS_DIR / "fraud_best_gradient_boosting.pkl")
     except Exception as exc:
         import numpy as _np
         import sklearn as _sk

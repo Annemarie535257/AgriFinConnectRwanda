@@ -834,10 +834,6 @@ export default function FarmerDashboard() {
   const pendingCount = applications.filter((a) => a.status === 'pending').length;
   const approvedCount = applications.filter((a) => a.status === 'approved').length;
   const canCheckEligibility = !modelLoading;
-  const eligibilityApproved = modelResults.eligibility?.approved === true;
-  const eligibilityRejected = modelResults.eligibility?.approved === false;
-  const canRunRiskAndRecommendation = eligibilityRejected && missingRequiredDocumentTypes.length === 0;
-  const recommendationLimitReached = recommendationLocked && eligibilityRejected;
   const effectiveRequiredDocuments = requiredDocuments.length > 0 ? requiredDocuments : FALLBACK_REQUIRED_DOCUMENTS;
   const requiresSpouseId = String(form.marital_status || '').toLowerCase() === 'married';
   const requiredDocumentTypesWithConditions = Array.from(
@@ -856,6 +852,10 @@ export default function FarmerDashboard() {
   const missingRequiredDocumentLabels = missingRequiredDocumentTypes.map((docType) => (
     requiredDocumentLabelByType.get(docType) || docType
   ));
+  const eligibilityApproved = modelResults.eligibility?.approved === true;
+  const eligibilityRejected = modelResults.eligibility?.approved === false;
+  const canRunRiskAndRecommendation = eligibilityRejected;
+  const recommendationLimitReached = recommendationLocked && eligibilityRejected;
   const canSubmitApplication = !loading && missingRequiredDocumentTypes.length === 0;
 
   return (
