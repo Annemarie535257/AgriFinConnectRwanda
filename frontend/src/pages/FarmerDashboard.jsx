@@ -196,6 +196,7 @@ export default function FarmerDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [loanSubmitSuccess, setLoanSubmitSuccess] = useState(false);
   const [downloadingPackageId, setDownloadingPackageId] = useState(null);
   const [modelLoading, setModelLoading] = useState(null); // 'eligibility' | 'risk' | 'recommend' | null
   const [modelResults, setModelResults] = useState({ eligibility: null, risk: null, recommend: null });
@@ -592,6 +593,7 @@ export default function FarmerDashboard() {
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setLoanSubmitSuccess(false);
     try {
       // Convert land size and yield to standard units (ha, kg) before submitting
       const submittedForm = { ...form, language };
@@ -640,6 +642,7 @@ export default function FarmerDashboard() {
         setDocumentFiles({});
       }
       setSuccess(t('farmer.applicationSubmitted') || 'Application submitted successfully!');
+      setLoanSubmitSuccess(true);
       setModelResults({ eligibility: null, risk: null, recommend: null });
       setRecommendationSuggested(false);
       setRecommendationApplied(false);
@@ -647,6 +650,7 @@ export default function FarmerDashboard() {
       setForm(DEFAULT_LOAN_FORM);
       fetchData();
     } catch (err) {
+      setLoanSubmitSuccess(false);
       setError(err.body?.error || err.message || 'Failed to submit application');
     } finally {
       setLoading(false);
@@ -1272,6 +1276,14 @@ export default function FarmerDashboard() {
             >
               {loading ? t('getStarted.submitting') : t('farmer.submitApplication') || 'Submit application'}
             </button>
+            {loanSubmitSuccess && (
+              <div className="farmer-dashboard__submit-success" role="status" aria-live="polite">
+                <span className="farmer-dashboard__submit-success-icon" aria-hidden="true" />
+                <div>
+                  <strong>Your loan application was submitted successfully.</strong>
+                </div>
+              </div>
+            )}
           </form>
         </section>
         </>
