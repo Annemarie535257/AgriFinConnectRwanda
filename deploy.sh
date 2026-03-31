@@ -33,7 +33,8 @@ fi
 if [ -f "requirements.txt" ]; then
     echo ">>> Installing Python requirements in Virtual Env..."
     "$VENV_PIP" install --upgrade pip
-    "$VENV_PIP" install -r requirements.txt
+    # Prevent stale cached wheels from keeping an older numpy/joblib/sklearn runtime.
+    "$VENV_PIP" install --no-cache-dir -r requirements.txt
 fi
 
 # 4. Build frontend (React/Vite)
@@ -52,6 +53,8 @@ if [ -d "backend" ]; then
     cd backend || exit 1
     "$VENV_PYTHON" manage.py migrate --noinput
     "$VENV_PYTHON" manage.py collectstatic --noinput
+    echo ">>> Verifying model runtime and artifact loading..."
+    "$VENV_PYTHON" manage.py shell -c "from api.model_health import get_model_health; h=get_model_health(); print(h); import sys; sys.exit(0 if h.get('status') == 'ok' else 1)"
     cd "$PROJECT_ROOT" || exit 1
 fi
 

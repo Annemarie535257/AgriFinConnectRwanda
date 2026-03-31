@@ -17,10 +17,26 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 )
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // Service worker registration is optional; fail silently.
-    })
+  window.addEventListener('load', async () => {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.map((registration) => registration.unregister()))
+    } catch {
+      // Ignore service worker cleanup failures.
+    }
+
+    try {
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys()
+        await Promise.all(
+          cacheKeys
+            .filter((key) => key.startsWith('agrifinconnect-'))
+            .map((key) => caches.delete(key))
+        )
+      }
+    } catch {
+      // Ignore cache cleanup failures.
+    }
   })
 }
 

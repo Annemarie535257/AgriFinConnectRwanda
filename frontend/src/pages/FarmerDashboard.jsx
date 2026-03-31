@@ -584,9 +584,28 @@ export default function FarmerDashboard() {
 
   const handleSubmitApplication = async (e) => {
     e.preventDefault();
-    if (!canSubmitApplication) {
+    // Recompute required-document validation locally to avoid relying on
+    // derived constants declared later in the component body.
+    const effectiveDocs = requiredDocuments.length > 0 ? requiredDocuments : FALLBACK_REQUIRED_DOCUMENTS;
+    const spouseRequired = String(form.marital_status || '').toLowerCase() === 'married';
+    const requiredTypes = Array.from(
+      new Set([
+        ...effectiveDocs.filter((doc) => doc.required).map((doc) => doc.document_type),
+        ...(spouseRequired ? ['spouse_id'] : []),
+      ])
+    );
+    const missingTypes = requiredTypes.filter((docType) => {
+      const selected = documentFiles[docType];
+      return !(selected && selected instanceof File);
+    });
+    const labelByType = new Map(
+      effectiveDocs.map((doc) => [doc.document_type, doc.name || doc.document_type])
+    );
+    const missingLabels = missingTypes.map((docType) => labelByType.get(docType) || docType);
+
+    if (missingTypes.length > 0) {
       setError(
-        `${t('farmer.missingRequiredDocs') || 'Please upload all required documents before submitting.'} ${missingRequiredDocumentLabels.join(', ')}`
+        `${t('farmer.missingRequiredDocs') || 'Please upload all required documents before submitting.'} ${missingLabels.join(', ')}`
       );
       return;
     }
