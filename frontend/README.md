@@ -32,7 +32,15 @@ Configure your Django app to expose:
 - `POST /api/recommend-amount/` — body: JSON with features (no LoanAmount); response: `{ "recommended_amount": number }` or `{ "amount": number }`
 - `POST /api/chat/` — body: `{ "message": string, "language": "en"|"fr"|"rw" }`; response: `{ "reply": string }`
 
-In development, Vite proxies `/api` to `http://localhost:8000`, so run Django on port 8000 with URL prefix `/api` for the above endpoints.
+In development, Vite proxies `/api` to `http://127.0.0.1:8001` by default (see `VITE_DEV_API_PROXY` in `vite.config.js`).
+
+Run Django on port 8001 with URL prefix `/api`, or override the proxy target:
+
+```bash
+# PowerShell
+$env:VITE_DEV_API_PROXY='http://127.0.0.1:8000'
+npm run dev
+```
 
 ## Build for production
 

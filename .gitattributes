@@ -1,4 +1,2 @@
 # Large model files were previously tracked via Git LFS.
-# LFS tracking has been removed to avoid LFS budget issues on Render/Netlify.
-# These files are now in .gitignore — load models at runtime from Hugging Face Hub
-# (set CHATBOT_MODEL_HF_REPO env var) or disable chatbot (CHATBOT_DISABLED=1).
+# LFS tracking has been removed; model artifacts remain gitignored.

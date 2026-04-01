@@ -1,48 +1,61 @@
-# Unified requirements for backend runtime, ML, notebooks, and tests.
+# Unified requirements for backend runtime, ML inference/training, notebooks, and tests.
 
-# Backend API and server
-Django>=4.2,<5.1
-djangorestframework>=3.14
+# -----------------------------------------------------------------------------
+# Backend API runtime
+# -----------------------------------------------------------------------------
+Django>=5.0,<5.2
+dj-database-url>=2.1
 django-cors-headers>=4.3
+djangorestframework>=3.14
 drf-yasg>=1.21
 gunicorn>=21.0
-psycopg2-binary>=2.9
-dj-database-url>=2.1
-whitenoise>=6.6
 Pillow>=10.0
-pdfplumber>=0.10
+psycopg2-binary>=2.9
 twilio>=9.0
+whitenoise>=6.6
 
-# Data and ML core
-# Pin core ML runtime versions to match exported fraud artifacts.
-# NOTE: Fraud artifacts were exported with NumPy 2.x + sklearn 1.8 + joblib 1.5.3.
-numpy==2.4.2
-pandas>=2.2
-scipy>=1.13
+# PDF statement ingestion
+pdfplumber>=0.10
+
+# -----------------------------------------------------------------------------
+# Core ML inference stack
+# -----------------------------------------------------------------------------
+# For model artifact compatibility.
 joblib==1.5.3
+numpy==2.4.1
 scikit-learn==1.8.0
+scipy>=1.13
+
+# Used by notebooks/training and some feature engineering scripts.
+pandas>=2.2
 xgboost>=2.0
 
-# Chatbot and translation stack
-transformers<5.0.0
-huggingface-hub>=0.20
-torch>=2.2; python_version >= "3.9" and python_version < "3.13"
+# -----------------------------------------------------------------------------
+# Chatbot and translation
+# -----------------------------------------------------------------------------
 sentencepiece>=0.1.99
+torch>=2.2; python_version >= "3.9" and python_version < "3.13"
+transformers>=4.30,<5.0.0
+tensorflow>=2.15,<3.0
 
-# Notebook and training utilities
-datasets>=2.14.0
+# -----------------------------------------------------------------------------
+# Notebook/training extras
+# -----------------------------------------------------------------------------
 accelerate>=0.25.0
-peft>=0.7.0
-bitsandbytes>=0.41.0
-matplotlib>=3.7
-seaborn>=0.13
-plotly>=5.0
+datasets>=2.14.0
 evaluate>=0.4
-sacrebleu>=2.0
-rouge-score>=0.1.2
+ipython>=8.0
 kagglehub>=0.3
-IPython>=8.0
+matplotlib>=3.7
+peft>=0.7.0
+plotly>=5.0
+rouge-score>=0.1.2
+sacrebleu>=2.0
+seaborn>=0.13
+bitsandbytes>=0.41.0; platform_system != "Windows"
 
-# Test dependencies
+# -----------------------------------------------------------------------------
+# Testing
+# -----------------------------------------------------------------------------
 pytest>=8.0
 pytest-django>=4.8

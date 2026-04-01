@@ -148,8 +148,6 @@ FRAUD_MODELS_DIR = PROJECT_ROOT / 'fraud_detection_model'
 
 # Chatbot model: local directory (overrides default 'saved-model' in chatbot_service)
 CHATBOT_MODEL_DIR = PROJECT_ROOT / 'AI_Chatbot_model'
-# When local dir is missing (e.g. on Render), load from Hugging Face Hub. Set to '' to disable.
-CHATBOT_MODEL_HF_REPO = os.environ.get('CHATBOT_MODEL_HF_REPO', 'Annemarie535257/agrifinconnect-chatbot')
 
 # Email (for password reset). Console backend prints to terminal in dev.
 _smtp_user = os.environ.get('EMAIL_HOST_USER', '').strip()

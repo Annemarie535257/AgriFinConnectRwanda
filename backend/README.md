@@ -1,71 +1,229 @@
-# AgriFinConnect Rwanda — Backend
+# AgriFinConnect Rwanda
 
-Django REST API that loads the trained ML models and exposes endpoints for the frontend.
+AgriFinConnect Rwanda is an AI-powered agricultural finance platform for smallholder farmers in Rwanda. It connects farmers with microfinance institutions (MFIs) through a full end-to-end loan lifecycle: application submission, AI-driven eligibility assessment, document upload, MFI review, loan approval, and monthly repayment tracking.
 
-## Setup
+The platform includes four ML models (loan eligibility classification, default risk scoring, loan amount recommendation, and fraud detection) plus a multilingual AI chatbot (English, French, Kinyarwanda).
+
+## Demo and Live Links
+
+- Demo video: https://drive.google.com/file/d/1loEs-dxLta9XgLZvLriXO-GBeUfeL_SX/view?usp=sharing
+- Live platform: https://agrifinconnect.online/
+- Production Swagger docs: https://agrifinconnectrwanda.onrender.com/swagger/
+
+## Description
+
+AgriFinConnect Rwanda combines:
+
+- A React + Vite frontend for farmers, MFI officers, and admins
+- A Django REST Framework API for authentication, dashboards, and ML inference
+- Four ML models:
+  - Loan eligibility (classifier)
+  - Default risk (regressor)
+  - Recommended amount (regressor)
+  - Fraud detection (gradient boosting + isolation forest)
+- A Flan-T5 chatbot fine-tuned on mortgage/loan Q&A data, with MarianMT translation for French and Kinyarwanda
+- A document-driven loan workflow with downloadable ZIP packages (PDF summary + uploaded documents)
+
+## 1. High-Level Architecture
+
+```text
+Browser
+  |
+  +-- React + Vite
+       |  /api/* (proxy in dev, direct in prod)
+       v
+  Django REST Framework
+       |
+       +-- Authentication (register, login, token auth, password reset)
+       +-- Farmer portal (applications, docs, loans, repayments, packages)
+       +-- MFI portal (review, status updates, portfolio stats)
+       +-- Admin portal (users, stats, application oversight)
+       |
+       +-- ML pipeline
+       |    +-- ml_service.py          -> eligibility, risk score, recommended amount
+       |    +-- fraud_service.py       -> transaction fraud detection
+       |    +-- chatbot_service.py     -> Flan-T5 answer generation
+       |    +-- translation_service.py -> EN <-> FR / RW translation
+       |    +-- explanations.py        -> multilingual result explanations
+       |
+       +-- SQLite
+       +-- Media files (loan_docs/)
+```
+
+## 2. Feature Highlights
+
+### ML models
+
+- Loan Eligibility (Model 1) - XGBoost Classifier
+  - Predicts Approved / Denied with reason text
+  - Inputs arrive in RWF and are converted to USD model space (`RWF_TO_USD = 1350`)
+  - Very low incomes are scaled to training distribution while preserving DTI
+- Default Risk Score (Model 2) - GradientBoostingRegressor
+  - Returns a risk score with low/medium/high interpretation
+- Loan Amount Recommendation (Model 3) - GradientBoostingRegressor
+  - Recommends amount in RWF, constrained by DTI guardrails
+- Fraud Detection (Model 4)
+  - Gradient boosting + isolation forest hybrid scoring
+  - Returns `is_fraud`, `fraud_probability`, `risk_score`, `risk_level`, `anomaly_score`
+
+### Loan workflow
+
+1. Farmer submits application and ML pipeline runs automatically.
+2. Farmer uploads required documents (ID, land certificate, income proof, etc.).
+3. MFI officer reviews AI outputs and documents, then approves/rejects/requests more docs.
+4. On approval, backend creates a `Loan` and full monthly `Repayment` schedule.
+5. Admin can inspect details and override status.
+6. Application package is downloadable as ZIP (summary PDF + docs).
+
+### Repayment tracking system
+
+- Monthly schedule is created at approval time and follows calendar months (not 30-day windows)
+- Overdue status is auto-updated when MFI portfolio endpoint is loaded
+- MFI can mark installments paid from portfolio table
+- Farmer view is read-only for repayment status
+- API and UI enforce role restriction on farmer mark-paid attempts (403)
+
+### Chatbot
+
+- Fine-tuned Flan-T5 model from `Notebooks/Financial_LLM_Chatbot.ipynb`
+- Local runtime loading from `AI_Chatbot_model/` configured in Django settings
+- Supports `en`, `fr`, `rw` via translation service wrappers
+- Available in floating widget and Try Models page
+
+## 3. Project Structure
+
+```text
+AgriFinConnectRwanda/
+|
++-- backend/
+|   +-- api/
+|   |   +-- ml_service.py
+|   |   +-- fraud_service.py
+|   |   +-- chatbot_service.py
+|   |   +-- translation_service.py
+|   |   +-- explanations.py
+|   |   +-- views.py
+|   |   +-- urls.py
+|   |   +-- models.py
+|   |   +-- serializers.py
+|   |   +-- admin.py
+|   |   +-- tests/
+|   |   +-- management/commands/
+|   |   +-- migrations/
+|   +-- config/
+|   |   +-- settings.py
+|   |   +-- urls.py
+|   +-- manage.py
+|   +-- db.sqlite3
+|
++-- frontend/
+|   +-- src/
+|   |   +-- api/client.js
+|   |   +-- pages/
+|   |   +-- components/
+|   |   +-- context/LanguageContext.jsx
+|   |   +-- translations.js
+|   +-- vite.config.js
+|   +-- package.json
+|
++-- loan_default_risk_model/
++-- fraud_detection_model/
++-- AI_Chatbot_model/
++-- Notebooks/
++-- datasets/
++-- render.yaml
++-- requirements.txt
++-- README.md
+```
+
+## 4. Local Setup and Dependency Installation
+
+### Prerequisites
+
+- Python 3.11 recommended
+- Node.js 18+
+- npm 9+
+
+### Backend setup
+
+From repository root:
+
+```bash
+py -3.11 -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cd backend
+python manage.py migrate
+python manage.py runserver 8001
+```
+
+If you prefer backend on 8000, set frontend proxy override before running Vite:
+
+```powershell
+$env:VITE_DEV_API_PROXY="http://127.0.0.1:8000"
+```
+
+Backend URLs (default local run shown above):
+
+- API base: http://127.0.0.1:8001/api/
+- Swagger: http://127.0.0.1:8001/swagger/
+- ReDoc: http://127.0.0.1:8001/redoc/
+
+### Frontend setup
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend runs on `http://localhost:3000` by default.
+
+### Create demo users
 
 ```bash
 cd backend
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-# source venv/bin/activate
-pip install -r requirements.txt
+python manage.py createtestusers
 ```
 
-Ensure the trained models exist in the project root:
+Default credentials:
 
-- `../loan_default_risk_model/` (relative to `backend/`)
+- Farmer: `farmer@test.agrifinconnect.rw` / `Farmer123!`
+- Microfinance: `microfinance@test.agrifinconnect.rw` / `Microfinance123!`
+
+## 5. Model Artifacts Required by Backend
+
+Expected at project root:
+
+- `loan_default_risk_model/`
   - `feature_columns.pkl`
   - `scaler.pkl`
   - `label_encoder.pkl`
   - `loan_default_classifier.pkl`
   - `risk_score_regressor.pkl`
   - `loan_amount_regressor.pkl`
-- `../saved-model/` — **Chatbot** (T5 from `Notebooks/Financial_LLM_Chatbot.ipynb`)
-  - `config.json`, `tf_model.h5`, tokenizer files (`tokenizer.json`, `spiece.model`, etc.)
-  - Required by `POST /api/chat/`; uses TensorFlow + Hugging Face Transformers (see `requirements.txt`).
+- `fraud_detection_model/`
+  - Fraud model and encoder artifacts
+- `AI_Chatbot_model/`
+  - Flan-T5 model + tokenizer files produced by notebook export
 
-## Run
+When artifacts are missing, affected endpoints return `503` with descriptive error details while unrelated endpoints continue working.
 
-```bash
-python manage.py migrate
-python manage.py runserver
-```
+## 6. Auth and Password Reset
 
-**Create test users (farmer + microfinance):**
-
-```bash
-python manage.py createtestusers
-```
-
-This creates:
-- **Farmer:** `farmer@test.agrifinconnect.rw` / `Farmer123!`
-- **Microfinance:** `microfinance@test.agrifinconnect.rw` / `Microfinance123!`
-
-Use these to log in on the Get Started page and view the dashboards.
-
-API base: **http://localhost:8000/api/**  
-**Swagger UI:** http://localhost:8000/swagger/  
-**ReDoc:** http://localhost:8000/redoc/
-
-## Auth (registration & login)
-
-- **Admin** is created in the backend only (no public registration). Use Django admin or `createsuperuser`, then add a **UserProfile** with role `admin` for that user (or use a staff/superuser — they are treated as admin at login).
-- **Farmers** and **Microfinance** can register via API; all roles (farmer, microfinance, admin) use **login** with email + password.
+- Admin users are backend-managed only (no public admin registration)
+- Farmer and microfinance roles can register through API
 
 | Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/auth/register/` | Register (body: `email`, `password`, `role`: `farmer` \| `microfinance`, optional `name`) |
-| POST | `/api/auth/login/` | Login (body: `email`, `password`). Returns `token` + `user` (id, email, role). |
-| POST | `/api/auth/forgot-password/` | Request password reset (body: `email`). Sends reset link to email. |
-| POST | `/api/auth/reset-password/` | Set new password (body: `token`, `new_password`). Token from email link. |
+|---|---|---|
+| POST | `/api/auth/register/` | Register farmer or microfinance user |
+| POST | `/api/auth/login/` | Login and receive token + role |
+| POST | `/api/auth/forgot-password/` | Request reset token email |
+| POST | `/api/auth/reset-password/` | Reset password via token |
 
-### Real email delivery (password reset)
-
-By default in local development, Django uses the console email backend, so emails appear in terminal logs.
-To send real emails, configure SMTP environment variables:
+SMTP environment configuration (optional):
 
 ```bash
 DJANGO_EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
@@ -73,79 +231,121 @@ EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=1
 EMAIL_HOST_USER=<your_email_username>
-EMAIL_HOST_PASSWORD=<your_smtp_password_or_app_password>
+EMAIL_HOST_PASSWORD=<your_app_password>
 DJANGO_FROM_EMAIL=<from_email>
 PASSWORD_RESET_FRONTEND_URL=http://localhost:3000
 ```
 
-For Gmail, use an **App Password** (not your normal account password).
+## 7. API Endpoints (Core)
 
-**Create an admin user (backend):**
+Base path: `/api/`
 
-```bash
-python manage.py createsuperuser   # create a Django superuser (e.g. admin@example.com)
-# Then in Django admin (http://localhost:8000/admin/): add UserProfile for that user with role "Admin"
-# Or: staff/superuser users without a UserProfile are treated as role "admin" at login.
-```
+### ML and chatbot
 
-## Activity tracking (Get Started) + Admin API
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/eligibility/` | Standalone eligibility prediction |
+| POST | `/risk/` | Standalone default risk score |
+| POST | `/recommend-amount/` | Standalone recommendation |
+| POST | `/fraud-detect/` | Fraud detection from transaction payload |
+| POST | `/fraud-detect/statement/` | Fraud/anomaly analysis from statement file |
+| POST | `/chat/` | Chatbot response for `message` + `language` |
+
+### Farmer portal
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET/PATCH | `/farmer/profile/` | View or update farmer profile |
+| GET/POST | `/farmer/applications/` | List or submit applications |
+| GET/POST | `/farmer/applications/<id>/documents/` | List/upload documents |
+| GET | `/farmer/applications/<id>/package/` | Download ZIP package |
+| GET | `/farmer/required-documents/` | List required docs |
+| GET | `/farmer/loans/` | Approved loans |
+| GET | `/farmer/repayments/` | Repayment schedule (read-only) |
+| PATCH | `/farmer/repayments/<id>/mark-paid/` | Always 403 for farmer role |
+
+### MFI portal
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/mfi/applications/` | List applications |
+| PATCH | `/mfi/applications/<id>/update-status/` | Approve/reject/request docs |
+| GET/POST | `/mfi/applications/<id>/review/` | Detail + review action |
+| POST | `/mfi/applications/<id>/messages/` | Send message to farmer |
+| POST | `/mfi/applications/<id>/analyze-statement/` | Analyze attached statement |
+| GET | `/mfi/applications/<id>/package/` | Download package |
+| GET | `/mfi/portfolio/` | Portfolio and repayment schedules |
+| PATCH | `/mfi/repayments/<id>/mark-paid/` | Mark repayment as paid |
+
+### Admin portal
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/admin/users/` | List users |
+| GET | `/admin/stats/` | Platform stats |
+| GET | `/admin/activity/` | Get Started activity log |
+| GET | `/admin/applications/` | List all applications |
+| GET | `/admin/applications/<id>/` | Full application detail |
+| PATCH | `/admin/applications/<id>/status/` | Override status |
+
+Full API schema: `/swagger/` and `/redoc/`
+
+## 8. Activity Tracking
 
 | Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/activity/log/` | Log Get Started event (no auth). Body: `{ "event_type": "modal_opened" \| "register_clicked" \| "login_clicked", "role": "farmers" \| "microfinances" \| "admin" }` |
-| GET | `/api/admin/activity/` | List Get Started events (admin token required). Query: `?limit=100` |
+|---|---|---|
+| POST | `/api/activity/log/` | Log Get Started interactions |
+| GET | `/api/admin/activity/` | Fetch activity entries (admin auth) |
 
-**Admin can view activity:**
-- **Django admin:** `http://localhost:8000/admin/` → Get Started events (after `python manage.py migrate`)
-- **API:** `GET /api/admin/activity/` with header `Authorization: Token <admin_token>`
+## 9. Running End-to-End Locally
 
-## ML & Chat endpoints
+1. Start backend on port 8001.
+2. Start frontend on port 3000.
+3. Open `http://localhost:3000` and use Get Started.
+4. Test roles and workflows:
+   - Farmer: create application, upload docs, view repayments
+   - MFI: review status, mark repayments paid, inspect portfolio
+   - Admin: monitor users/stats/applications and override status
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/eligibility/` | Model 1 — loan approval (body: JSON with features) |
-| POST | `/api/risk/` | Model 2 — default risk score |
-| POST | `/api/recommend-amount/` | Model 3 — recommended loan amount |
-| POST | `/api/chat/` | Chatbot (body: `{ "message", "language": "en"\|"fr"\|"rw" }`) |
+## 10. Training and Refreshing Models
 
-### Request bodies
+- Loan models: run `Notebooks/train_loan_default_risk_model.ipynb`
+- Fraud model: run `Notebooks/train_fraud_detection_model.ipynb`
+- Chatbot model: run `Notebooks/Financial_LLM_Chatbot.ipynb`, export with:
 
-- **Eligibility / Risk / Recommend-amount**: JSON with any subset of:
-  - Numeric: `Age`, `AnnualIncome`, `CreditScore`, `LoanAmount`, `LoanDuration`, `DebtToIncomeRatio`, `Experience`, `NumberOfDependents`, etc.
-  - Categorical: `EmploymentStatus` (`Employed` \| `Self-Employed` \| `Unemployed`), `EducationLevel` (`High School` \| `Associate` \| `Bachelor` \| `Master`), `MaritalStatus`, `HomeOwnershipStatus`, `LoanPurpose`
-- Missing fields use safe defaults.
-
-### Responses
-
-- **Eligibility**: `{ "approved": true|false, "prediction": 0|1 }`
-- **Risk**: `{ "risk_score": number, "score": number }`
-- **Recommend-amount**: `{ "recommended_amount": number, "amount": number }`
-- **Chat**: `{ "reply": string, "response": string }` — When `saved-model/` is present and TensorFlow/transformers are installed, the reply is generated by the fine-tuned T5 model; otherwise a short fallback message is returned.
-
-### Testing the chatbot
-
-1. Install dependencies (includes TensorFlow and transformers):  
-   `pip install -r requirements.txt`
-2. From the **project root**, ensure `saved-model/` exists (output of `Notebooks/Financial_LLM_Chatbot.ipynb`).
-3. Start the server: `python manage.py runserver`
-4. Call the chat API:
-
-```bash
-curl -X POST http://localhost:8000/api/chat/ -H "Content-Type: application/json" -d "{\"message\":\"How do I apply for a loan?\",\"language\":\"en\"}"
+```python
+save_dir = r"C:/Users/Hp/Desktop/ALU/AgriFinConnectRwanda/AI_Chatbot_model"
+tokenizer.save_pretrained(save_dir)
+model.save_pretrained(save_dir)
 ```
 
-Or test the service in Django shell:
+Restart backend after updating model artifacts.
 
-```bash
-python manage.py shell -c "from api.chatbot_service import generate_reply; print(generate_reply('How do I apply for a loan?'))"
-```
+## 11. Key Data Models
 
-**If you see "The chatbot model is not available right now":**
+| Model | Key fields |
+|---|---|
+| LoanApplication | user, status, amount, duration, AI outputs, review fields |
+| Loan | application, amount, interest_rate, duration, monthly_payment |
+| Repayment | loan, amount, due_date, status, paid_at |
+| ApplicationStatusUpdate | application, status, note, updated_by |
+| LoanApplicationDocument | application, document_type, file |
+| LoanApplicationMessage | application, sender, recipient, message |
 
-- With **DEBUG=True**, the JSON response includes `chatbot_load_error` with the reason (e.g. missing `tensorflow` or `transformers`, or wrong path).
-- Ensure **`saved-model/`** is at the project root (same folder as `backend/`), and that you ran **`pip install -r requirements.txt`** (which installs `tensorflow`, `transformers`, `sentencepiece`).
-- Check the server console for a log line: `Failed to load chatbot model from ...`.
+Repayment generation behavior:
 
-## CORS
+- Uses amortized mortgage formula for monthly installment
+- Generates one row per calendar month for full duration
+- Uses `Loan.objects.get_or_create` guard to avoid duplicate loan creation
 
-The frontend (React on port 3000) is allowed via `django-cors-headers`. For other origins, add them in `config/settings.py` under `CORS_ALLOWED_ORIGINS`.
+## 12. Known Behaviors and Notes
+
+- Farmer mark-paid endpoint is intentionally blocked with `403`
+- Overdue statuses are auto-updated on MFI portfolio retrieval
+- Statement scanner returns parser diagnostics in API output
+- Fraud model artifacts are loaded atomically to fail fast on version mismatch
+- Profile photos are persisted with DB metadata and file storage
+
+## 13. CORS
+
+`django-cors-headers` is configured for local frontend origins and production domains. Add custom origins through `CORS_ALLOWED_ORIGINS` in `backend/config/settings.py`.

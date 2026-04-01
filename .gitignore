@@ -17,14 +17,13 @@ htmlcov/
 .DS_Store
 *.ipynb_checkpoints/
 
-# Large model files — never commit, load from Hugging Face Hub at runtime
-# (CHATBOT_MODEL_HF_REPO env var) or disable with CHATBOT_DISABLED=1
+# Large model files — never commit
 AI_Chatbot_model/
 AI_Chatbot_model/model.safetensors
 AI_Chatbot_model/tf_model.h5
 saved-model/
 
-# Dataset from Hugging Face (use notebooks to download; not needed for frontend deploy)
+# Chatbot dataset directory generated from notebooks
 datasets/Bitext-mortgage-loans-llm-chatbot-training-dataset/
 
 # Keep locally for now (remove this line when ready to push)
@@ -33,11 +32,6 @@ Notebooks/train_document_fraud_ai_altered_model.ipynb
 # Local-only architecture document (do not commit)
 PROJECT_ARCHITECTURE_LOCAL.md
 VIDEO_DEFENSE_SCRIPT.md
-
-# Netlify local/dev artifacts
-.netlify/
-frontend/.netlify/
-netlify-debug.log
 
 # Render local/deploy artifacts
 .render/

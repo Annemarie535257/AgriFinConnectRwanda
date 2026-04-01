@@ -36,9 +36,8 @@ services:
           property: connectionString
 
       # ── CORS / Frontend ──
-      # Set to your Netlify URL, e.g. https://agrifinconnectrwanda.netlify.app
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://agrifinconnectrwanda.netlify.app"
+        value: "https://agrifinconnect.online"
 
       # ── Email (password reset) ──
       # Use an SMTP provider (e.g., Gmail app password, SendGrid, Mailgun, Brevo).
@@ -58,20 +57,12 @@ services:
       - key: DJANGO_FROM_EMAIL
         value: "noreply@agrifinconnect.rw"
       - key: PASSWORD_RESET_FRONTEND_URL
-        value: "https://agrifinconnectrwanda.netlify.app"
+        value: "https://agrifinconnect.online"
 
       # ── Chatbot model ──
-      # Two options:
-      #   Option A: load from Hugging Face Hub at startup (slower cold start, works on free tier if model is small)
-      #     Set CHATBOT_MODEL_HF_REPO to your HF repo name, e.g. Annemarie535257/agrifinconnect-chatbot
-      #   Option B: disable chatbot entirely on Render (returns a static fallback reply)
-      #     Set CHATBOT_DISABLED=1
+      # Set CHATBOT_DISABLED=1 to disable chatbot and return static fallback reply.
       - key: CHATBOT_DISABLED
-        value: "1"   # Change to "" and set CHATBOT_MODEL_HF_REPO if you want the chatbot on Render
-
-      # Uncomment and set if using Option A (HuggingFace Hub):
-      # - key: CHATBOT_MODEL_HF_REPO
-      #   value: "Annemarie535257/agrifinconnect-chatbot"
+        value: "1"
 
 databases:
   - name: agrifinconnect-db
